@@ -1,0 +1,26 @@
+services:
+  postgres-db:
+    image: postgres:18.4
+    container_name: postgresql
+    restart: unless-stopped
+    shm_size: 2252mb
+    environment:
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
+      - POSTGRES_DB=${POSTGRES_DB:-CloseLinkit}
+      - TZ=America/Chihuahua
+    ports:
+      - "127.0.0.1:${DB_PORT}:5432"
+    volumes:
+      - pg_data_CloseLinkit:/var/lib/postgresql
+
+    command:
+      - "postgres"
+      - "-c"
+      - "shared_buffers=1GB" # Suele ser el 25% de la RAM del servidor
+      - "-c"
+      - "work_mem=16MB" # Útil para acelerar ordenamientos y uniones complejas
+      - "-c"
+      - "log_statement=all"
+
+volumes:
+  pg_data_CloseLinkit:
