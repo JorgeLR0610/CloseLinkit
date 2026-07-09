@@ -2,7 +2,6 @@ package service
 
 import (
 	"context"
-	"time"
 
 	"github.com/JorgeLR0610/CloseLinkit/internal/repository"
 )
@@ -17,6 +16,6 @@ func NewURLService(repo *repository.Queries) *URLService {
 	}
 }
 
-func (s *URLService) CreateURL(ctx context.Context, originalURL, shortCode string, expiresAt time.Time) {
+func (s *URLService) CreateURL(ctx context.Context, originalURL string) {
 	
 }
