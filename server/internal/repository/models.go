@@ -16,6 +16,5 @@ type Url struct {
 	ShortCode   string
 	CreatedAt   time.Time
 	ExpiresAt   time.Time
-	UpdatedAt   time.Time
 	ClickCount  int32
 }

@@ -13,9 +13,9 @@ import (
 )
 
 const createURL = `-- name: CreateURL :one
-INSERT INTO urls (original_url, short_code, created_at, expires_at, updated_at)
-VALUES ($1, $2, now(), $3, now())
-RETURNING id, original_url, short_code, created_at, expires_at, updated_at, click_count
+INSERT INTO urls (original_url, short_code, expires_at)
+VALUES ($1, $2, $3)
+RETURNING original_url, short_code, created_at, expires_at
 `
 
 type CreateURLParams struct {
@@ -24,23 +24,27 @@ type CreateURLParams struct {
 	ExpiresAt   time.Time
 }
 
-func (q *Queries) CreateURL(ctx context.Context, arg CreateURLParams) (Url, error) {
+type CreateURLRow struct {
+	OriginalUrl string
+	ShortCode   string
+	CreatedAt   time.Time
+	ExpiresAt   time.Time
+}
+
+func (q *Queries) CreateURL(ctx context.Context, arg CreateURLParams) (CreateURLRow, error) {
 	row := q.db.QueryRowContext(ctx, createURL, arg.OriginalUrl, arg.ShortCode, arg.ExpiresAt)
-	var i Url
+	var i CreateURLRow
 	err := row.Scan(
-		&i.ID,
 		&i.OriginalUrl,
 		&i.ShortCode,
 		&i.CreatedAt,
 		&i.ExpiresAt,
-		&i.UpdatedAt,
-		&i.ClickCount,
 	)
 	return i, err
 }
 
 const getURL = `-- name: GetURL :one
-SELECT id, original_url, short_code, created_at, updated_at, expires_at
+SELECT id, original_url, short_code, created_at, expires_at
 FROM urls 
 WHERE short_code = $1
 `
@@ -50,7 +54,6 @@ type GetURLRow struct {
 	OriginalUrl string
 	ShortCode   string
 	CreatedAt   time.Time
-	UpdatedAt   time.Time
 	ExpiresAt   time.Time
 }
 
@@ -62,72 +65,26 @@ func (q *Queries) GetURL(ctx context.Context, shortCode string) (GetURLRow, erro
 		&i.OriginalUrl,
 		&i.ShortCode,
 		&i.CreatedAt,
-		&i.UpdatedAt,
 		&i.ExpiresAt,
 	)
 	return i, err
 }
 
-const deleteURL = `-- name: deleteURL :exec
-DELETE FROM urls
+const getURLStats = `-- name: GetURLStats :one
+SELECT click_count, created_at, expires_at
+FROM urls
 WHERE short_code = $1
 `
 
-func (q *Queries) deleteURL(ctx context.Context, shortCode string) error {
-	_, err := q.db.ExecContext(ctx, deleteURL, shortCode)
-	return err
+type GetURLStatsRow struct {
+	ClickCount int32
+	CreatedAt  time.Time
+	ExpiresAt  time.Time
 }
 
-const getURLStats = `-- name: getURLStats :one
-SELECT id, original_url, short_code, created_at, expires_at, updated_at, click_count FROM urls
-WHERE short_code = $1
-`
-
-func (q *Queries) getURLStats(ctx context.Context, shortCode string) (Url, error) {
+func (q *Queries) GetURLStats(ctx context.Context, shortCode string) (GetURLStatsRow, error) {
 	row := q.db.QueryRowContext(ctx, getURLStats, shortCode)
-	var i Url
-	err := row.Scan(
-		&i.ID,
-		&i.OriginalUrl,
-		&i.ShortCode,
-		&i.CreatedAt,
-		&i.ExpiresAt,
-		&i.UpdatedAt,
-		&i.ClickCount,
-	)
-	return i, err
-}
-
-const updateOriginalURL = `-- name: updateOriginalURL :one
-UPDATE urls
-SET original_url = $1, updated_at = $2
-WHERE short_code = $3
-RETURNING original_url, short_code, created_at, updated_at, expires_at
-`
-
-type updateOriginalURLParams struct {
-	OriginalUrl string
-	UpdatedAt   time.Time
-	ShortCode   string
-}
-
-type updateOriginalURLRow struct {
-	OriginalUrl string
-	ShortCode   string
-	CreatedAt   time.Time
-	UpdatedAt   time.Time
-	ExpiresAt   time.Time
-}
-
-func (q *Queries) updateOriginalURL(ctx context.Context, arg updateOriginalURLParams) (updateOriginalURLRow, error) {
-	row := q.db.QueryRowContext(ctx, updateOriginalURL, arg.OriginalUrl, arg.UpdatedAt, arg.ShortCode)
-	var i updateOriginalURLRow
-	err := row.Scan(
-		&i.OriginalUrl,
-		&i.ShortCode,
-		&i.CreatedAt,
-		&i.UpdatedAt,
-		&i.ExpiresAt,
-	)
+	var i GetURLStatsRow
+	err := row.Scan(&i.ClickCount, &i.CreatedAt, &i.ExpiresAt)
 	return i, err
 }
