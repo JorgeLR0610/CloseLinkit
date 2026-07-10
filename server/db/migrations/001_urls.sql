@@ -4,7 +4,6 @@ CREATE TABLE urls(
     original_url TEXT NOT NULL,
     short_code VARCHAR(7) NOT NULL CONSTRAINT urls_short_code_unique UNIQUE,
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-    expires_at TIMESTAMPTZ,
     click_count INTEGER NOT NULL DEFAULT 0
 );
 

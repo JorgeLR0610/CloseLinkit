@@ -13,6 +13,5 @@ type Url struct {
 	OriginalUrl string
 	ShortCode   string
 	CreatedAt   pgtype.Timestamptz
-	ExpiresAt   pgtype.Timestamptz
 	ClickCount  int32
 }

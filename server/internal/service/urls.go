@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"net"
 	"net/url"
 	"strings"
 
@@ -13,9 +12,11 @@ import (
 	"github.com/jackc/pgx/v5/pgconn"
 )
 
-var ErrInvalidURL = errors.New("invalid URL scheme")
-var ErrNoHost = errors.New("no such host")
+var ErrInvalidURLScheme = errors.New("invalid URL scheme")
+var ErrNoHost = errors.New("invalid host")
+var ErrInvalidURL = errors.New("invalid URL")
 var	ErrCouldNotGenerateUniqueShortCode = errors.New("could not generate unique short code")
+
 const uniqueViolation = "23505"
 
 const maxRetries = 5
@@ -35,15 +36,14 @@ func NewURLService(repo *repository.Queries, generator *generator.ShortCodeGener
 func (s *URLService) CreateURL(ctx context.Context, originalURL string) (repository.CreateURLRow, error) {
 	parsedURL, err := url.Parse(strings.TrimSpace(originalURL))
 	if err != nil {
-		return repository.CreateURLRow{}, fmt.Errorf("error parsing URL: %w", err)
+		return repository.CreateURLRow{}, ErrInvalidURL
 	}
 
 	if parsedURL.Scheme != "http" && parsedURL.Scheme != "https" {
 		return repository.CreateURLRow{}, ErrInvalidURL
 	}
 
-	_, err = net.LookupHost(parsedURL.Hostname())
-	if err != nil {
+	if parsedURL.Hostname() == "" {
 		return repository.CreateURLRow{}, ErrNoHost
 	}
 
@@ -66,6 +66,7 @@ func (s *URLService) CreateURL(ctx context.Context, originalURL string) (reposit
 			}
 			return repository.CreateURLRow{}, fmt.Errorf("could not insert URL to database: %w", err)
 		}
+
 		return createdURL, nil
 	}
 	return repository.CreateURLRow{}, ErrCouldNotGenerateUniqueShortCode

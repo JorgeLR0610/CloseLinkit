@@ -12,38 +12,37 @@ import (
 )
 
 const createURL = `-- name: CreateURL :one
-INSERT INTO urls (original_url, short_code, expires_at)
-VALUES ($1, $2, $3)
-RETURNING original_url, short_code, created_at, expires_at
+INSERT INTO urls (original_url, short_code)
+VALUES ($1, $2)
+RETURNING id, original_url, short_code, created_at
 `
 
 type CreateURLParams struct {
 	OriginalUrl string
 	ShortCode   string
-	ExpiresAt   pgtype.Timestamptz
 }
 
 type CreateURLRow struct {
+	ID          pgtype.UUID
 	OriginalUrl string
 	ShortCode   string
 	CreatedAt   pgtype.Timestamptz
-	ExpiresAt   pgtype.Timestamptz
 }
 
 func (q *Queries) CreateURL(ctx context.Context, arg CreateURLParams) (CreateURLRow, error) {
-	row := q.db.QueryRow(ctx, createURL, arg.OriginalUrl, arg.ShortCode, arg.ExpiresAt)
+	row := q.db.QueryRow(ctx, createURL, arg.OriginalUrl, arg.ShortCode)
 	var i CreateURLRow
 	err := row.Scan(
+		&i.ID,
 		&i.OriginalUrl,
 		&i.ShortCode,
 		&i.CreatedAt,
-		&i.ExpiresAt,
 	)
 	return i, err
 }
 
 const getURL = `-- name: GetURL :one
-SELECT id, original_url, short_code, created_at, expires_at
+SELECT id, original_url, short_code, created_at
 FROM urls 
 WHERE short_code = $1
 `
@@ -53,7 +52,6 @@ type GetURLRow struct {
 	OriginalUrl string
 	ShortCode   string
 	CreatedAt   pgtype.Timestamptz
-	ExpiresAt   pgtype.Timestamptz
 }
 
 func (q *Queries) GetURL(ctx context.Context, shortCode string) (GetURLRow, error) {
@@ -64,13 +62,12 @@ func (q *Queries) GetURL(ctx context.Context, shortCode string) (GetURLRow, erro
 		&i.OriginalUrl,
 		&i.ShortCode,
 		&i.CreatedAt,
-		&i.ExpiresAt,
 	)
 	return i, err
 }
 
 const getURLStats = `-- name: GetURLStats :one
-SELECT click_count, created_at, expires_at
+SELECT click_count, created_at
 FROM urls
 WHERE short_code = $1
 `
@@ -78,12 +75,11 @@ WHERE short_code = $1
 type GetURLStatsRow struct {
 	ClickCount int32
 	CreatedAt  pgtype.Timestamptz
-	ExpiresAt  pgtype.Timestamptz
 }
 
 func (q *Queries) GetURLStats(ctx context.Context, shortCode string) (GetURLStatsRow, error) {
 	row := q.db.QueryRow(ctx, getURLStats, shortCode)
 	var i GetURLStatsRow
-	err := row.Scan(&i.ClickCount, &i.CreatedAt, &i.ExpiresAt)
+	err := row.Scan(&i.ClickCount, &i.CreatedAt)
 	return i, err
 }

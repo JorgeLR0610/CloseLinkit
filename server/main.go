@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"os"
 
+	"github.com/JorgeLR0610/CloseLinkit/internal/api/v1"
 	"github.com/JorgeLR0610/CloseLinkit/internal/generator"
 	"github.com/JorgeLR0610/CloseLinkit/internal/repository"
 	"github.com/JorgeLR0610/CloseLinkit/internal/service"
@@ -37,17 +38,21 @@ func main() {
 	// Generator
 	gen, err := generator.NewShortCodeGenerator(7)
 	if err != nil {
-		log.Fatalf("Could not initiate generator: %w", err)
+		log.Fatalf("Could not initialize generator: %v", err)
 	}
 
 	// Services
 	urlsSvc := service.NewURLService(queries, gen)
 
+	// Handlers
+	urlsHandler := api.NewURLHandler(urlsSvc)
+
 
 	mux := http.NewServeMux()
 
-	// Handlers
-	//mux.HandleFunc("GET /api/shorten", )
+	// Endpoints
+	mux.HandleFunc("GET /api/shorten", urlsHandler.HandlerCreateURL)
+
 
 	srv := &http.Server {
 		Addr: ":" + port,
