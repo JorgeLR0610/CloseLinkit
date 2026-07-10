@@ -10,10 +10,15 @@ import (
 
 	"github.com/JorgeLR0610/CloseLinkit/internal/generator"
 	"github.com/JorgeLR0610/CloseLinkit/internal/repository"
+	"github.com/jackc/pgx/v5/pgconn"
 )
 
 var ErrInvalidURL = errors.New("invalid URL scheme")
 var ErrNoHost = errors.New("no such host")
+var	ErrCouldNotGenerateUniqueShortCode = errors.New("could not generate unique short code")
+const uniqueViolation = "23505"
+
+const maxRetries = 5
 
 type URLService struct {
 	repo 	  *repository.Queries
@@ -27,28 +32,42 @@ func NewURLService(repo *repository.Queries, generator *generator.ShortCodeGener
 	}
 }
 
-func (s *URLService) CreateURL(ctx context.Context, originalURL string) (repository.Url, error) {
+func (s *URLService) CreateURL(ctx context.Context, originalURL string) (repository.CreateURLRow, error) {
 	parsedURL, err := url.Parse(strings.TrimSpace(originalURL))
 	if err != nil {
-		return repository.Url{}, fmt.Errorf("Error parsing URL: %w", err)
+		return repository.CreateURLRow{}, fmt.Errorf("error parsing URL: %w", err)
 	}
 
-	if parsedURL.Scheme != "http" || parsedURL.Scheme != "https" {
-		return repository.Url{}, ErrInvalidURL
+	if parsedURL.Scheme != "http" && parsedURL.Scheme != "https" {
+		return repository.CreateURLRow{}, ErrInvalidURL
 	}
 
-	_, err = net.LookupHost(parsedURL.Host)
+	_, err = net.LookupHost(parsedURL.Hostname())
 	if err != nil {
-		return repository.Url{}, ErrNoHost
+		return repository.CreateURLRow{}, ErrNoHost
 	}
 
-	// Generate short code
-	shortCode, err := s.generator.GenerateShortCode()
-	if err != nil {
-		return repository.Url{}, fmt.Errorf("error generating short code: %w", err)
-	}
+	// Try to create and store short code, up to the defined number of attempts
+	for range maxRetries {
+		shortCode, err := s.generator.GenerateShortCode()
+		if err != nil {
+			return repository.CreateURLRow{}, fmt.Errorf("error generating short code: %w", err)
+		}
 
-	
-	
+		createdURL, err := s.repo.CreateURL(ctx, repository.CreateURLParams{
+			OriginalUrl: parsedURL.String(),
+			ShortCode: shortCode,
+		})
+		if err != nil {
+			if pgErr, ok := errors.AsType[*pgconn.PgError](err); ok {
+				if pgErr.SQLState() == uniqueViolation && pgErr.ConstraintName == "urls_short_code_unique" {
+					continue
+				}
+			}
+			return repository.CreateURLRow{}, fmt.Errorf("could not insert URL to database: %w", err)
+		}
+		return createdURL, nil
+	}
+	return repository.CreateURLRow{}, ErrCouldNotGenerateUniqueShortCode
 }
 

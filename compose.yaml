@@ -6,7 +6,7 @@ services:
     shm_size: 2252mb
     environment:
       - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
-      - POSTGRES_DB=${POSTGRES_DB:-CloseLinkit}
+      - POSTGRES_DB=${POSTGRES_DB}
       - TZ=America/Chihuahua
     ports:
       - "127.0.0.1:${DB_PORT}:5432"
@@ -16,9 +16,9 @@ services:
     command:
       - "postgres"
       - "-c"
-      - "shared_buffers=1GB" # Suele ser el 25% de la RAM del servidor
+      - "shared_buffers=1GB"
       - "-c"
-      - "work_mem=16MB" # Útil para acelerar ordenamientos y uniones complejas
+      - "work_mem=16MB"
       - "-c"
       - "log_statement=all"
 

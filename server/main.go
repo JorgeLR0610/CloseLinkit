@@ -1,7 +1,7 @@
 package api
 
 import (
-	"database/sql"
+	"context"
 	"log"
 	"net/http"
 	"os"
@@ -9,23 +9,30 @@ import (
 	"github.com/JorgeLR0610/CloseLinkit/internal/generator"
 	"github.com/JorgeLR0610/CloseLinkit/internal/repository"
 	"github.com/JorgeLR0610/CloseLinkit/internal/service"
+	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/joho/godotenv"
 )
 
 
 func main() {
 	godotenv.Load()
-	dbURL := os.Getenv("DB_URL")
+	ctx := context.Background()
 
-	db, err := sql.Open("postgres", dbURL)
+	pool, err := pgxpool.New(ctx, os.Getenv("DB_URL"))
 	if err != nil {
-		log.Fatalf("Could not connect to database: %v", err)
+		log.Fatalf("Could not create connection pool: %v\n", err)
 	}
+
+	defer pool.Close()
+
+	if err := pool.Ping(ctx); err != nil {
+		log.Fatalf("Could not connect to database (ping failed): %v\n", err)
+}
 
 	const port = "8080"
 
 	// Repository
-	dbQueries := repository.New(db)
+	queries := repository.New(pool)
 	
 	// Generator
 	gen, err := generator.NewShortCodeGenerator(7)
@@ -34,7 +41,7 @@ func main() {
 	}
 
 	// Services
-	urlsSvc := service.NewURLService(dbQueries, gen)
+	urlsSvc := service.NewURLService(queries, gen)
 
 
 	mux := http.NewServeMux()

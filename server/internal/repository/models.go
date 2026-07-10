@@ -5,16 +5,14 @@
 package repository
 
 import (
-	"time"
-
-	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5/pgtype"
 )
 
 type Url struct {
-	ID          uuid.UUID
+	ID          pgtype.UUID
 	OriginalUrl string
 	ShortCode   string
-	CreatedAt   time.Time
-	ExpiresAt   time.Time
+	CreatedAt   pgtype.Timestamptz
+	ExpiresAt   pgtype.Timestamptz
 	ClickCount  int32
 }
