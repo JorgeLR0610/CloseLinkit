@@ -54,7 +54,7 @@ func main() {
 	mux := http.NewServeMux()
 
 	// Endpoints
-	mux.HandleFunc("GET /api/shorten", urlsHandler.HandlerCreateURL)
+	mux.HandleFunc("POST /api/v1/shorten", urlsHandler.HandlerCreateURL)
 
 
 	srv := &http.Server {
