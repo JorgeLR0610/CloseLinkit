@@ -55,20 +55,21 @@ func (q *Queries) GetURL(ctx context.Context, shortCode string) (string, error) 
 }
 
 const getURLStats = `-- name: GetURLStats :one
-SELECT click_count, created_at
+SELECT original_url, click_count, created_at
 FROM urls
 WHERE short_code = $1
 `
 
 type GetURLStatsRow struct {
-	ClickCount int32
-	CreatedAt  pgtype.Timestamptz
+	OriginalUrl string
+	ClickCount  int32
+	CreatedAt   pgtype.Timestamptz
 }
 
 func (q *Queries) GetURLStats(ctx context.Context, shortCode string) (GetURLStatsRow, error) {
 	row := q.db.QueryRow(ctx, getURLStats, shortCode)
 	var i GetURLStatsRow
-	err := row.Scan(&i.ClickCount, &i.CreatedAt)
+	err := row.Scan(&i.OriginalUrl, &i.ClickCount, &i.CreatedAt)
 	return i, err
 }
 

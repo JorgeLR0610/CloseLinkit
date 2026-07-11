@@ -53,7 +53,7 @@ func (h *URLHandler) HandlerCreateURL(w http.ResponseWriter, r *http.Request) {
 		ShortCode: newURL.ShortCode,
 		CreatedAt: newURL.CreatedAt.Time,
 	}); err != nil {
-		log.Printf("Could not send response creation: %v", err)
+		log.Printf("Could not send shortCode creation response: %v", err)
 		return
 	}
 }
@@ -74,5 +74,28 @@ func (h *URLHandler) HandlerGetURL(w http.ResponseWriter, r *http.Request) {
 	}
 
 	http.Redirect(w, r, retrievedURL, http.StatusFound)
+}
 
+func (h *URLHandler) HandlerGetURLStats(w http.ResponseWriter, r *http.Request)  {
+	shortCode := r.PathValue("shortCode")
+
+	stats, err := h.service.GetURLStats(r.Context(), shortCode)
+	if err != nil {
+		if errors.Is(err, service.ErrNoURLFound) {
+			response.WriteError(w, http.StatusNotFound, "Sorry, we did not found the page you are looking for")
+			return
+		}
+
+		response.WriteError(w, http.StatusInternalServerError, "There was an error on our end")
+		log.Printf("There was an error retrieving a URL: %v", err)
+		return		
+	}
+
+	if err := response.WriteJSON(w, http.StatusOK, GetURLStatsResponse{
+		OriginalURL: stats.OriginalUrl,
+		ClickCount: int(stats.ClickCount),
+		CreatedAt: stats.CreatedAt.Time,
+	}); err != nil {
+			log.Printf("Could not send stats response: %v", err)
+	}
 }

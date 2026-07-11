@@ -92,3 +92,15 @@ func (s *URLService) ResolveShortCode(ctx context.Context, shortCode string) (st
 	return retrievedURL, nil
 }
 
+func (s *URLService) GetURLStats(ctx context.Context, shortCode string) (repository.GetURLStatsRow, error) {
+	stats, err := s.repo.GetURLStats(ctx, shortCode)
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return repository.GetURLStatsRow{}, ErrNoURLFound
+		}
+
+		return repository.GetURLStatsRow{}, fmt.Errorf("error retrieving URL: %w", err)
+	}
+
+	return stats, nil
+}
