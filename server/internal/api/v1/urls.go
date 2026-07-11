@@ -35,7 +35,7 @@ func (h *URLHandler) HandlerCreateURL(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	newURL, err := h.service.CreateURL(r.Context(), urlParams.OriginalURL)
+	newURL, err := h.service.CreateShortCode(r.Context(), urlParams.OriginalURL)
 	if err != nil {
 		if errors.Is(err, service.ErrInvalidURLScheme) || errors.Is(err, service.ErrNoHost) || errors.Is(err, service.ErrInvalidURL) {
 			response.WriteError(w, http.StatusBadRequest, err.Error())
@@ -53,7 +53,26 @@ func (h *URLHandler) HandlerCreateURL(w http.ResponseWriter, r *http.Request) {
 		ShortCode: newURL.ShortCode,
 		CreatedAt: newURL.CreatedAt.Time,
 	}); err != nil {
-		log.Printf("could not send response creation: %v", err)
+		log.Printf("Could not send response creation: %v", err)
 		return
 	}
+}
+
+func (h *URLHandler) HandlerGetURL(w http.ResponseWriter, r *http.Request) {
+	shortCode := r.PathValue("shortCode")
+
+	retrievedURL, err := h.service.ResolveShortCode(r.Context(), shortCode)
+	if err != nil {
+		if errors.Is(err, service.ErrNoURLFound) {
+			response.WriteError(w, http.StatusNotFound, "Sorry, we did not found the page you are looking for")
+			return
+		}
+
+		response.WriteError(w, http.StatusInternalServerError, "There was an error on our end")
+		log.Printf("There was an error retrieving a URL: %v", err)
+		return
+	}
+
+	http.Redirect(w, r, retrievedURL, http.StatusFound)
+
 }

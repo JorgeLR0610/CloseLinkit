@@ -42,28 +42,16 @@ func (q *Queries) CreateURL(ctx context.Context, arg CreateURLParams) (CreateURL
 }
 
 const getURL = `-- name: GetURL :one
-SELECT id, original_url, short_code, created_at
+SELECT original_url
 FROM urls 
 WHERE short_code = $1
 `
 
-type GetURLRow struct {
-	ID          pgtype.UUID
-	OriginalUrl string
-	ShortCode   string
-	CreatedAt   pgtype.Timestamptz
-}
-
-func (q *Queries) GetURL(ctx context.Context, shortCode string) (GetURLRow, error) {
+func (q *Queries) GetURL(ctx context.Context, shortCode string) (string, error) {
 	row := q.db.QueryRow(ctx, getURL, shortCode)
-	var i GetURLRow
-	err := row.Scan(
-		&i.ID,
-		&i.OriginalUrl,
-		&i.ShortCode,
-		&i.CreatedAt,
-	)
-	return i, err
+	var original_url string
+	err := row.Scan(&original_url)
+	return original_url, err
 }
 
 const getURLStats = `-- name: GetURLStats :one
@@ -82,4 +70,15 @@ func (q *Queries) GetURLStats(ctx context.Context, shortCode string) (GetURLStat
 	var i GetURLStatsRow
 	err := row.Scan(&i.ClickCount, &i.CreatedAt)
 	return i, err
+}
+
+const incrementClickCount = `-- name: IncrementClickCount :exec
+UPDATE urls
+SET click_count = click_count + 1
+WHERE short_code = $1
+`
+
+func (q *Queries) IncrementClickCount(ctx context.Context, shortCode string) error {
+	_, err := q.db.Exec(ctx, incrementClickCount, shortCode)
+	return err
 }

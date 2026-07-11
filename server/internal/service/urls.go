@@ -9,12 +9,15 @@ import (
 
 	"github.com/JorgeLR0610/CloseLinkit/internal/generator"
 	"github.com/JorgeLR0610/CloseLinkit/internal/repository"
+	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgconn"
 )
 
 var ErrInvalidURLScheme = errors.New("invalid URL scheme")
 var ErrNoHost = errors.New("invalid host")
 var ErrInvalidURL = errors.New("invalid URL")
+var ErrNoURLFound = errors.New("short URL not found")
+
 var	ErrCouldNotGenerateUniqueShortCode = errors.New("could not generate unique short code")
 
 const uniqueViolation = "23505"
@@ -33,7 +36,7 @@ func NewURLService(repo *repository.Queries, generator *generator.ShortCodeGener
 	}
 }
 
-func (s *URLService) CreateURL(ctx context.Context, originalURL string) (repository.CreateURLRow, error) {
+func (s *URLService) CreateShortCode(ctx context.Context, originalURL string) (repository.CreateURLRow, error) {
 	parsedURL, err := url.Parse(strings.TrimSpace(originalURL))
 	if err != nil {
 		return repository.CreateURLRow{}, ErrInvalidURL
@@ -70,5 +73,22 @@ func (s *URLService) CreateURL(ctx context.Context, originalURL string) (reposit
 		return createdURL, nil
 	}
 	return repository.CreateURLRow{}, ErrCouldNotGenerateUniqueShortCode
+}
+
+func (s *URLService) ResolveShortCode(ctx context.Context, shortCode string) (string, error) {
+	retrievedURL, err := s.repo.GetURL(ctx, shortCode)
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return "", ErrNoURLFound
+		}
+
+		return "", fmt.Errorf("error retrieving URL: %w", err)
+	}
+
+	if err := s.repo.IncrementClickCount(ctx, shortCode); err != nil {
+		return "", fmt.Errorf("error incrementing click count: %w", err)
+	}
+
+	return retrievedURL, nil
 }
 
