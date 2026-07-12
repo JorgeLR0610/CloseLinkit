@@ -8,6 +8,7 @@ import (
 
 	"github.com/JorgeLR0610/CloseLinkit/internal/api/v1"
 	"github.com/JorgeLR0610/CloseLinkit/internal/generator"
+	"github.com/JorgeLR0610/CloseLinkit/internal/middleware"
 	"github.com/JorgeLR0610/CloseLinkit/internal/repository"
 	"github.com/JorgeLR0610/CloseLinkit/internal/service"
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -60,7 +61,7 @@ func main() {
 
 	srv := &http.Server {
 		Addr: ":" + port,
-		Handler: mux,
+		Handler: middleware.RequestLogging(mux),
 	}
 
 	log.Printf("Server running on port: %s\n", port)
