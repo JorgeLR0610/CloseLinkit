@@ -2,7 +2,7 @@ package main
 
 import (
 	"context"
-	"log"
+	"log/slog"
 	"net/http"
 	"os"
 
@@ -15,55 +15,84 @@ import (
 	"github.com/joho/godotenv"
 )
 
-
 func main() {
+	// Text logger during development
+	logger := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{
+		Level: slog.LevelInfo,
+	}))
+
 	if err := godotenv.Load("../.env"); err != nil {
-		log.Fatal("Error loading .env file")
+		logger.Error(
+			"could not load .env file",
+			slog.Any("error", err),
+		)
+		os.Exit(1)
 	}
 
 	ctx := context.Background()
 
 	pool, err := pgxpool.New(ctx, os.Getenv("DB_URL"))
 	if err != nil {
-		log.Fatalf("Could not create connection pool: %v\n", err)
+		logger.Error(
+			"could not create connection pool",
+			slog.Any("error", err),
+		)
+		os.Exit(1)
 	}
 
 	defer pool.Close()
 
 	if err := pool.Ping(ctx); err != nil {
-		log.Fatalf("Could not connect to database (ping failed): %v\n", err)
-}
+		logger.Error(
+			"database ping failed",
+			slog.Any("error", err),
+		)
+		os.Exit(1)
+	}
 
 	const port = "8080"
 
 	// Repository
 	queries := repository.New(pool)
-	
+
 	// Generator
 	gen, err := generator.NewShortCodeGenerator(7)
 	if err != nil {
-		log.Fatalf("Could not initialize generator: %v", err)
+		logger.Error(
+			"could not initiate generator",
+			slog.Any("error", err),
+		)
+		os.Exit(1)
 	}
 
 	// Services
 	urlsSvc := service.NewURLService(queries, gen)
 
 	// Handlers
-	urlsHandler := api.NewURLHandler(urlsSvc)
-
+	urlsHandler := api.NewURLHandler(urlsSvc, logger)
 
 	mux := http.NewServeMux()
 
 	// Endpoints
-	mux.HandleFunc("POST /api/v1/shorten", urlsHandler.HandlerCreateURL)
-	mux.HandleFunc("GET /api/v1/{shortCode}", urlsHandler.HandlerGetURL)
-	mux.HandleFunc("GET /api/v1/{shortCode}/stats", urlsHandler.HandlerGetURLStats)
+	mux.Handle("POST /api/v1/shorten", middleware.RequestLogging(logger)(http.HandlerFunc(urlsHandler.HandlerCreateURL)))
+	mux.Handle("GET /api/v1/{shortCode}", middleware.RequestLogging(logger)(http.HandlerFunc(urlsHandler.HandlerGetURL)))
+	mux.Handle("GET /api/v1/{shortCode}/stats", middleware.RequestLogging(logger)(http.HandlerFunc(urlsHandler.HandlerGetURLStats)))
 
-	srv := &http.Server {
-		Addr: ":" + port,
-		Handler: middleware.RequestLogging(mux),
+	srv := &http.Server{
+		Addr:    ":" + port,
+		Handler: mux,
 	}
 
-	log.Printf("Server running on port: %s\n", port)
-	log.Fatal(srv.ListenAndServe())
+	logger.Info(
+		"server running",
+		slog.String("port", port),
+	)
+
+	if err := srv.ListenAndServe(); err != nil {
+		logger.Error(
+			"server stopped",
+			slog.Any("error", err),
+		)
+		os.Exit(1)
+	}
 }

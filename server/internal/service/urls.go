@@ -18,20 +18,20 @@ var ErrNoHost = errors.New("invalid host")
 var ErrInvalidURL = errors.New("invalid URL")
 var ErrNoURLFound = errors.New("short URL not found")
 
-var	ErrCouldNotGenerateUniqueShortCode = errors.New("could not generate unique short code")
+var ErrCouldNotGenerateUniqueShortCode = errors.New("could not generate unique short code")
 
 const uniqueViolation = "23505"
 
 const maxRetries = 5
 
 type URLService struct {
-	repo 	  *repository.Queries
+	repo      *repository.Queries
 	generator *generator.ShortCodeGenerator
 }
 
 func NewURLService(repo *repository.Queries, generator *generator.ShortCodeGenerator) *URLService {
 	return &URLService{
-		repo: repo,
+		repo:      repo,
 		generator: generator,
 	}
 }
@@ -59,7 +59,7 @@ func (s *URLService) CreateShortCode(ctx context.Context, originalURL string) (r
 
 		createdURL, err := s.repo.CreateURL(ctx, repository.CreateURLParams{
 			OriginalUrl: parsedURL.String(),
-			ShortCode: shortCode,
+			ShortCode:   shortCode,
 		})
 		if err != nil {
 			if pgErr, ok := errors.AsType[*pgconn.PgError](err); ok {

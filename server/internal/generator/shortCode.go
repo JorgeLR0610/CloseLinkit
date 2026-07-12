@@ -7,14 +7,15 @@ import (
 )
 
 var ErrInvalidLength = errors.New("the provided length is invalid or too short")
+
 const (
 	base62alphabet = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz"
-	minLength = 3
+	minLength      = 3
 )
 
 type ShortCodeGenerator struct {
 	alphabet string
-	length int
+	length   int
 }
 
 func NewShortCodeGenerator(length int) (*ShortCodeGenerator, error) {
@@ -23,14 +24,13 @@ func NewShortCodeGenerator(length int) (*ShortCodeGenerator, error) {
 	}
 
 	return &ShortCodeGenerator{
-			alphabet: base62alphabet,
-			length: length,
+		alphabet: base62alphabet,
+		length:   length,
 	}, nil
 }
 
-
 func (sc *ShortCodeGenerator) GenerateShortCode() (string, error) {
-	
+
 	code := make([]byte, sc.length)
 
 	for i := range sc.length {

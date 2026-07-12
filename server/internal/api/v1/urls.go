@@ -3,7 +3,7 @@ package api
 import (
 	"encoding/json"
 	"errors"
-	"log"
+	"log/slog"
 	"net/http"
 
 	"github.com/JorgeLR0610/CloseLinkit/internal/response"
@@ -12,18 +12,22 @@ import (
 
 type URLHandler struct {
 	service *service.URLService
+	logger  *slog.Logger
 }
 
-func NewURLHandler(svc *service.URLService) *URLHandler {
+func NewURLHandler(svc *service.URLService, logger *slog.Logger) *URLHandler {
 	return &URLHandler{
 		service: svc,
+		logger: logger.With(
+			slog.String("component", "url_handler"),
+		),
 	}
 }
 
 func (h *URLHandler) HandlerCreateURL(w http.ResponseWriter, r *http.Request) {
 
 	type urlCreationParams struct {
-		OriginalURL	string `json:"url"`
+		OriginalURL string `json:"url"`
 	}
 
 	var urlParams urlCreationParams
@@ -31,7 +35,7 @@ func (h *URLHandler) HandlerCreateURL(w http.ResponseWriter, r *http.Request) {
 	decoder.DisallowUnknownFields()
 
 	if err := decoder.Decode(&urlParams); err != nil {
-		response.WriteError(w, http.StatusBadRequest, "Invalid JSON payload") 
+		response.WriteError(w, http.StatusBadRequest, "Invalid JSON payload")
 		return
 	}
 
@@ -43,17 +47,27 @@ func (h *URLHandler) HandlerCreateURL(w http.ResponseWriter, r *http.Request) {
 		}
 
 		response.WriteError(w, http.StatusInternalServerError, "There was an error on our end")
-		log.Printf("There was an error creating a URL: %v", err)
+		h.logger.Error(
+			"could not create URL",
+			slog.String("method", r.Method),
+			slog.String("path", r.URL.Path),
+			slog.Any("error", err),
+		)
 		return
 	}
 
 	if err := response.WriteJSON(w, http.StatusCreated, CreateURLResponse{
-		ID: newURL.ID.String(),
+		ID:          newURL.ID.String(),
 		OriginalURL: newURL.OriginalUrl,
-		ShortCode: newURL.ShortCode,
-		CreatedAt: newURL.CreatedAt.Time,
+		ShortCode:   newURL.ShortCode,
+		CreatedAt:   newURL.CreatedAt.Time,
 	}); err != nil {
-		log.Printf("Could not send shortCode creation response: %v", err)
+		h.logger.Error(
+			"could not send shortCode creation response",
+			slog.String("method", r.Method),
+			slog.String("path", r.URL.Path),
+			slog.Any("error", err),
+		)
 		return
 	}
 }
@@ -69,14 +83,19 @@ func (h *URLHandler) HandlerGetURL(w http.ResponseWriter, r *http.Request) {
 		}
 
 		response.WriteError(w, http.StatusInternalServerError, "There was an error on our end")
-		log.Printf("There was an error retrieving a URL: %v", err)
+		h.logger.Error(
+			"could not retrieve URL",
+			slog.String("method", r.Method),
+			slog.String("path", r.URL.Path),
+			slog.Any("error", err),
+		)
 		return
 	}
 
 	http.Redirect(w, r, retrievedURL, http.StatusFound)
 }
 
-func (h *URLHandler) HandlerGetURLStats(w http.ResponseWriter, r *http.Request)  {
+func (h *URLHandler) HandlerGetURLStats(w http.ResponseWriter, r *http.Request) {
 	shortCode := r.PathValue("shortCode")
 
 	stats, err := h.service.GetURLStats(r.Context(), shortCode)
@@ -87,15 +106,25 @@ func (h *URLHandler) HandlerGetURLStats(w http.ResponseWriter, r *http.Request) 
 		}
 
 		response.WriteError(w, http.StatusInternalServerError, "There was an error on our end")
-		log.Printf("There was an error retrieving a URL: %v", err)
-		return		
+		h.logger.Error(
+			"could not retrieve URL",
+			slog.String("method", r.Method),
+			slog.String("path", r.URL.Path),
+			slog.Any("error", err),
+		)
+		return
 	}
 
 	if err := response.WriteJSON(w, http.StatusOK, GetURLStatsResponse{
 		OriginalURL: stats.OriginalUrl,
-		ClickCount: int(stats.ClickCount),
-		CreatedAt: stats.CreatedAt.Time,
+		ClickCount:  int(stats.ClickCount),
+		CreatedAt:   stats.CreatedAt.Time,
 	}); err != nil {
-			log.Printf("Could not send stats response: %v", err)
+		h.logger.Error(
+			"could not send stats response",
+			slog.String("method", r.Method),
+			slog.String("path", r.URL.Path),
+			slog.Any("error", err),
+		)
 	}
 }
