@@ -7,11 +7,21 @@ import (
 	"net/url"
 	"strings"
 
-	"github.com/JorgeLR0610/CloseLinkit/internal/generator"
 	"github.com/JorgeLR0610/CloseLinkit/internal/repository"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgconn"
 )
+
+type URLRepository interface {
+	CreateURL(ctx context.Context, arg repository.CreateURLParams) (repository.CreateURLRow, error)
+	GetURL(ctx context.Context, shortCode string) (string, error)
+	GetURLStats(ctx context.Context, shortCode string) (repository.GetURLStatsRow, error)
+	IncrementClickCount(ctx context.Context, shortCode string) error
+}
+
+type ShortCodeGenerator interface {
+	GenerateShortCode() (string, error)
+}
 
 var ErrInvalidURLScheme = errors.New("invalid URL scheme")
 var ErrNoHost = errors.New("invalid host")
@@ -25,11 +35,11 @@ const uniqueViolation = "23505"
 const maxRetries = 5
 
 type URLService struct {
-	repo      *repository.Queries
-	generator *generator.ShortCodeGenerator
+	repo      URLRepository
+	generator ShortCodeGenerator
 }
 
-func NewURLService(repo *repository.Queries, generator *generator.ShortCodeGenerator) *URLService {
+func NewURLService(repo URLRepository, generator ShortCodeGenerator) *URLService {
 	return &URLService{
 		repo:      repo,
 		generator: generator,
@@ -43,7 +53,7 @@ func (s *URLService) CreateShortCode(ctx context.Context, originalURL string) (r
 	}
 
 	if parsedURL.Scheme != "http" && parsedURL.Scheme != "https" {
-		return repository.CreateURLRow{}, ErrInvalidURL
+		return repository.CreateURLRow{}, ErrInvalidURLScheme
 	}
 
 	if parsedURL.Hostname() == "" {

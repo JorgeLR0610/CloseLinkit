@@ -1,14 +1,22 @@
 package api
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"log/slog"
 	"net/http"
 
+	"github.com/JorgeLR0610/CloseLinkit/internal/repository"
 	"github.com/JorgeLR0610/CloseLinkit/internal/response"
 	"github.com/JorgeLR0610/CloseLinkit/internal/service"
 )
+
+type URLServicer interface {
+	CreateShortCode(ctx context.Context, originalURL string) (repository.CreateURLRow, error)
+	ResolveShortCode(ctx context.Context, shortCode string) (string, error)
+	GetURLStats(ctx context.Context, shortCode string) (repository.GetURLStatsRow, error)
+}
 
 type URLHandler struct {
 	service *service.URLService
