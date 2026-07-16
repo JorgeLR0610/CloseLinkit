@@ -19,11 +19,11 @@ type URLServicer interface {
 }
 
 type URLHandler struct {
-	service *service.URLService
+	service URLServicer
 	logger  *slog.Logger
 }
 
-func NewURLHandler(svc *service.URLService, logger *slog.Logger) *URLHandler {
+func NewURLHandler(svc URLServicer, logger *slog.Logger) *URLHandler {
 	return &URLHandler{
 		service: svc,
 		logger: logger.With(
