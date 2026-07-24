@@ -1,0 +1,50 @@
+.hero {
+  text-align: center;
+  width: 100%;
+  max-width: 800px;
+  margin-top: 40px;
+}
+.hero-title {
+  font-size: 3.5rem;
+  font-weight: 800;
+  letter-spacing: -1.5px;
+  margin-bottom: 16px;
+  background: linear-gradient(to right, #fff, #94a3b8);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+.hero-subtitle {
+  color: var(--text-secondary);
+  font-size: 1.1rem;
+  margin-bottom: 40px;
+}
+.hero-form {
+  display: flex;
+  padding: 8px;
+  gap: 8px;
+  border-radius: 99px; /* Pill shape */
+}
+.hero-input {
+  flex: 1;
+  background: transparent;
+  border: none;
+  padding: 16px 24px;
+  color: var(--text-primary);
+  font-size: 1.1rem;
+  outline: none;
+}
+.hero-input::placeholder {
+  color: var(--text-secondary);
+}
+.hero-btn {
+  background: var(--accent-color);
+  color: white;
+  border: none;
+  padding: 0 32px;
+  border-radius: 99px;
+  font-weight: 600;
+  font-size: 1rem;
+}
+.hero-btn:hover {
+  background: var(--accent-hover);
+}
