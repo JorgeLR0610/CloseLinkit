@@ -49,3 +49,11 @@
 .hero-btn:hover {
   background: var(--accent-hover);
 }
+
+.hero-error {
+  color: #ef4444;
+  font-size: 0.9rem;
+  margin-top: 12px;
+  text-align: center;
+  font-weight: 500;
+}

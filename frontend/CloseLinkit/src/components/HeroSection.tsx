@@ -7,12 +7,39 @@ interface Props {
 }
 
 export default function HeroSection({ onShorten }: Props) {
-  const [url, setUrl] = useState('')
+  const [url, setURL] = useState('')
+  const [error, setError] = useState<string | null>(null)
+
+  function isValidHttpURL(value: string): boolean {
+    const trimmed = value.trim();
+
+    if (!trimmed.startsWith("https://") && !trimmed.startsWith("http://")) {
+      return false;
+    }
+
+    try {
+      const url = new URL(trimmed);
+
+      return (
+        (url.protocol === "https:" || url.protocol === "http:") &&
+        url.hostname.length > 0
+      );
+    } catch {
+      return false;
+    }
+  }
 
   const handleSubmit = (e: SyntheticEvent) => {
     e.preventDefault()
-    onShorten(url)
-    setUrl('')
+
+    if (!isValidHttpURL(url)) {
+      setError("The provided URL has a wrong format")
+      return;
+    }
+
+    setError(null);
+    onShorten(url);
+    setURL('')
   }
 
   return (
@@ -22,15 +49,22 @@ export default function HeroSection({ onShorten }: Props) {
       
       <form className="hero-form glass-panel" onSubmit={handleSubmit}>
         <input 
-          type="url" 
+          type="text" 
           required
-          placeholder="Enter the link here" 
+          placeholder="Paste your link here" 
           className="hero-input"
           value={url}
-          onChange={(e) => setUrl(e.target.value)}
+          onChange={(e) => {
+            setURL(e.target.value)
+            if (error) setError(null)
+        }}
         />
-        <button type="submit" className="hero-btn">Shorten URL</button>
+
+        <button type="submit" className="hero-btn">
+          Shorten URL
+        </button>
       </form>
+      {error && <p className="hero-error fade-in">{error}</p>}
     </section>
   )
 }
