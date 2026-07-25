@@ -5,11 +5,7 @@ import RecentURLBox from './components/RecentURLBox'
 import URLList from './components/URLList'
 import FooterCTA from './components/FooterCTA'
 import './App.css'
-
-export type URLItem = {
-  original: string;
-  short: string;
-};
+import type { URLItem } from './types/url'
 
 function App() {
   const [recentURL, setRecentURL] = useState<string | null>(null)

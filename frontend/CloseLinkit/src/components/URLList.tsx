@@ -1,4 +1,4 @@
-import type { URLItem } from '../App'
+import type { URLItem } from '../types/url'
 import './URLList.css'
 
 export default function URLList({ history }: { history: URLItem[] }) {
