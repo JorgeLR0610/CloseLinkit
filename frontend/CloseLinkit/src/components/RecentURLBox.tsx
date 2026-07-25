@@ -12,7 +12,7 @@ export default function RecentURLBox({ shortURL }: { shortURL: string }) {
         <button onClick={copyToClipboard} className="copy-btn">Copy</button>
       </div>
       <div className="recent-bottom">
-        <span className="share-text">Links to share on popular apps using their logos</span>
+        {/* <span className="share-text">Links to share on popular apps using their logos</span> */}
         <div className="social-icons">
           <div className="social-icon whatsapp" title="WhatsApp">W</div>
           <div className="social-icon facebook" title="Facebook">F</div>

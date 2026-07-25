@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import type { FormEvent } from 'react'
+import type { SyntheticEvent } from 'react'
 import './HeroSection.css'
 
 interface Props {
@@ -9,7 +9,7 @@ interface Props {
 export default function HeroSection({ onShorten }: Props) {
   const [url, setUrl] = useState('')
 
-  const handleSubmit = (e: FormEvent) => {
+  const handleSubmit = (e: SyntheticEvent) => {
     e.preventDefault()
     onShorten(url)
     setUrl('')

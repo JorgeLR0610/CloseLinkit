@@ -1,2 +1,2 @@
 # CloseLinkit
-Simple RESTful API that allows users to shorten long URLs.
+Simple RESTful application that allows users to shorten long URLs.

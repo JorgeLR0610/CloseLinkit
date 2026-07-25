@@ -10,8 +10,8 @@ export default function URLList({ history }: { history: URLItem[] }) {
     <div className="url-list-container fade-in">
       <h3 className="list-title">List of shortened URLs</h3>
       <div className="url-list">
-        {history.map((item, index) => (
-          <div key={index} className="url-item glass-panel">
+        {history.map((item) => (
+          <div key={item.short} className="url-item glass-panel">
             <span className="original-url" title={item.original}>{item.original}</span>
             <div className="short-url-group">
               <span className="short-url">{item.short}</span>

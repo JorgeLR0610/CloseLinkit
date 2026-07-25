@@ -18,7 +18,7 @@ function App() {
   const handleShortenURL = (originalURL: string) => {
     if (!originalURL.trim()) return;
     
-    // Simulación de la respuesta de la API (mocking)
+    // API mock
     const fakeShort = `https://closelink.it/${Math.random().toString(36).substring(2, 7)}`
     setRecentURL(fakeShort)
     setUrlHistory([{ original: originalURL, short: fakeShort }, ...urlHistory])
@@ -30,7 +30,7 @@ function App() {
       <main className="main-content">
         <HeroSection onShorten={handleShortenURL} />
         
-        {/* Renderizado Condicional */}
+        
         {recentURL && <RecentURLBox shortURL={recentURL} />}
         
         {urlHistory.length > 0 && <URLList history={urlHistory} />}
