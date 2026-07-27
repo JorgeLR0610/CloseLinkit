@@ -119,7 +119,7 @@ func TestURLHandler_HandlerCreateURL(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			svc := tt.setupMock()
-			handler := api.NewURLHandler(svc, logger)
+			handler := api.NewURLHandler(svc, logger, "http://closelinkit.test")
 
 			req := httptest.NewRequest(http.MethodPost, "/api/v1/urls", bytes.NewBufferString(tt.requestBody))
 			req.Header.Set("Content-Type", "application/json")
@@ -140,8 +140,8 @@ func TestURLHandler_HandlerCreateURL(t *testing.T) {
 				if err := json.Unmarshal(w.Body.Bytes(), &resp); err != nil {
 					t.Fatalf("could not unmarshal response: %v", err)
 				}
-				if resp.ShortCode == "" || resp.OriginalURL == "" {
-					t.Errorf("expected response to have populated fields, got: %+v", resp)
+				if resp.ShortURL != "http://closelinkit.test/abcdef" {
+					t.Errorf("expected ShortURL to be 'http://closelinkit.test/abcdef', got: %s", resp.ShortURL)
 				}
 			}
 		})
@@ -200,7 +200,7 @@ func TestURLHandler_HandlerGetURL(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			svc := tt.setupMock()
-			handler := api.NewURLHandler(svc, logger)
+			handler := api.NewURLHandler(svc, logger, "http://closelinkit.test")
 
 			req := httptest.NewRequest(http.MethodGet, "/api/v1/"+tt.shortCode, nil)
 			req.SetPathValue("shortCode", tt.shortCode)
@@ -263,7 +263,7 @@ func TestURLHandler_HandlerGetURLStats(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			svc := tt.setupMock()
-			handler := api.NewURLHandler(svc, logger)
+			handler := api.NewURLHandler(svc, logger, "http://closelinkit.test")
 
 			req := httptest.NewRequest(http.MethodGet, "/api/v1/"+tt.shortCode+"/stats", nil)
 			req.SetPathValue("shortCode", tt.shortCode)
