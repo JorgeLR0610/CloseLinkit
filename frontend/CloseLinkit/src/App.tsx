@@ -9,7 +9,7 @@ import type { URLItem } from './types/url'
 
 function App() {
   const [recentURL, setRecentURL] = useState<string | null>(null)
-  const [urlHistory, setUrlHistory] = useState<URLItem[]>([])
+  const [urlHistory, setURLHistory] = useState<URLItem[]>([])
 
   const handleShortenURL = (originalURL: string) => {
     if (!originalURL.trim()) return;
@@ -17,7 +17,7 @@ function App() {
     // API mock
     const fakeShort = `https://closelink.it/${Math.random().toString(36).substring(2, 7)}`
     setRecentURL(fakeShort)
-    setUrlHistory([{ original: originalURL, short: fakeShort }, ...urlHistory])
+    setURLHistory(urlHistory => [{ originalURL: originalURL, shortURL: fakeShort }, ...urlHistory])
   }
 
   return (

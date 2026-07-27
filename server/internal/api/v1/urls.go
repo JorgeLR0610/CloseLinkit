@@ -6,6 +6,7 @@ import (
 	"errors"
 	"log/slog"
 	"net/http"
+	"strings"
 
 	"github.com/JorgeLR0610/CloseLinkit/internal/repository"
 	"github.com/JorgeLR0610/CloseLinkit/internal/response"
@@ -21,14 +22,16 @@ type URLServicer interface {
 type URLHandler struct {
 	service URLServicer
 	logger  *slog.Logger
+	baseURL string
 }
 
-func NewURLHandler(svc URLServicer, logger *slog.Logger) *URLHandler {
+func NewURLHandler(svc URLServicer, logger *slog.Logger, baseURL string) *URLHandler {
 	return &URLHandler{
 		service: svc,
 		logger: logger.With(
 			slog.String("component", "url_handler"),
 		),
+		baseURL: strings.TrimRight(baseURL, "/"),
 	}
 }
 
@@ -65,13 +68,10 @@ func (h *URLHandler) HandlerCreateURL(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if err := response.WriteJSON(w, http.StatusCreated, CreateURLResponse{
-		ID:          newURL.ID.String(),
-		OriginalURL: newURL.OriginalUrl,
-		ShortCode:   newURL.ShortCode,
-		CreatedAt:   newURL.CreatedAt.Time,
+		ShortURL: h.baseURL + "/" + newURL.ShortCode,
 	}); err != nil {
 		h.logger.Error(
-			"could not send shortCode creation response",
+			"could not send shortURL creation response",
 			slog.String("method", r.Method),
 			slog.String("path", r.URL.Path),
 			slog.Any("error", err),

@@ -5,10 +5,7 @@ import (
 )
 
 type CreateURLResponse struct {
-	ID          string    `json:"id"`
-	OriginalURL string    `json:"original_url"`
-	ShortCode   string    `json:"short_code"`
-	CreatedAt   time.Time `json:"created_at"`
+	ShortURL  string `json:"short_url"`
 }
 
 type GetURLStatsResponse struct {

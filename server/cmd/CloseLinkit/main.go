@@ -69,7 +69,7 @@ func main() {
 	urlsSvc := service.NewURLService(queries, gen)
 
 	// Handlers
-	urlsHandler := api.NewURLHandler(urlsSvc, logger)
+	urlsHandler := api.NewURLHandler(urlsSvc, logger, os.Getenv("BASE_URL"))
 
 	mux := http.NewServeMux()
 

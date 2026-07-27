@@ -11,11 +11,11 @@ export default function URLList({ history }: { history: URLItem[] }) {
       <h3 className="list-title">List of shortened URLs</h3>
       <div className="url-list">
         {history.map((item) => (
-          <div key={item.short} className="url-item glass-panel">
-            <span className="original-url" title={item.original}>{item.original}</span>
+          <div key={item.shortURL} className="url-item glass-panel">
+            <span className="original-url" title={item.originalURL}>{item.originalURL}</span>
             <div className="short-url-group">
-              <span className="short-url">{item.short}</span>
-              <button onClick={() => copyToClipboard(item.short)} className="copy-btn-small">Copy</button>
+              <span className="short-url">{item.shortURL}</span>
+              <button onClick={() => copyToClipboard(item.shortURL)} className="copy-btn-small">Copy</button>
             </div>
           </div>
         ))}
