@@ -64,7 +64,7 @@ export default function HeroSection({ onShorten }: Props) {
           Shorten URL
         </button>
       </form>
-      {error && <p className="hero-error fade-in">{error}</p>}
+      {error && <p className="hero-error fade-in" role="alert">{error}</p>}
     </section>
   )
 }

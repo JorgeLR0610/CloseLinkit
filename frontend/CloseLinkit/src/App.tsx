@@ -6,18 +6,24 @@ import URLList from './components/URLList'
 import FooterCTA from './components/FooterCTA'
 import './App.css'
 import type { URLItem } from './types/url'
+import { shortenURL } from './api/urls'
 
 function App() {
   const [recentURL, setRecentURL] = useState<string | null>(null)
   const [urlHistory, setURLHistory] = useState<URLItem[]>([])
+  const [error, setError] = useState<string | null>(null)
 
-  const handleShortenURL = (originalURL: string) => {
+  const handleShortenURL = async (originalURL: string) => {
     if (!originalURL.trim()) return;
     
-    // API mock
-    const fakeShort = `https://closelink.it/${Math.random().toString(36).substring(2, 7)}`
-    setRecentURL(fakeShort)
-    setURLHistory(urlHistory => [{ originalURL: originalURL, shortURL: fakeShort }, ...urlHistory])
+    try {
+      setError(null)
+      const data = await shortenURL(originalURL)
+      setRecentURL(data.shortURL)
+      setURLHistory(urlHistory => [{ originalURL: originalURL, shortURL: data.shortURL }, ...urlHistory])
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Unexpected error')
+    }
   }
 
   return (
@@ -25,7 +31,12 @@ function App() {
       <Header />
       <main className="main-content">
         <HeroSection onShorten={handleShortenURL} />
-        
+
+        {error && (
+          <p className="hero-error fade-in" role="alert">
+            {error}
+          </p>
+        )}
         
         {recentURL && <RecentURLBox shortURL={recentURL} />}
         
