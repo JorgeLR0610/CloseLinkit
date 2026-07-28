@@ -5,6 +5,7 @@ import (
 	"log/slog"
 	"net/http"
 	"os"
+	"strings"
 
 	"github.com/JorgeLR0610/CloseLinkit/internal/api/v1"
 	"github.com/JorgeLR0610/CloseLinkit/internal/generator"
@@ -16,6 +17,7 @@ import (
 )
 
 func main() {
+
 	// Text logger during development
 	logger := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{
 		Level: slog.LevelInfo,
@@ -29,8 +31,21 @@ func main() {
 		os.Exit(1)
 	}
 
+	// Load allowed origins env var
+	corsOriginRaw := os.Getenv("ALLOWED_ORIGINS")
+	var allowedOrigins []string
+
+	if corsOriginRaw == "" {
+		logger.Error(
+			"could not load ALLOWED_ORIGINS environment variable",
+		)
+		os.Exit(1)
+	}
+	allowedOrigins = strings.Split(corsOriginRaw, ",")
+
 	ctx := context.Background()
 
+	// Create pool connection
 	pool, err := pgxpool.New(ctx, os.Getenv("DB_URL"))
 	if err != nil {
 		logger.Error(
@@ -49,8 +64,6 @@ func main() {
 		)
 		os.Exit(1)
 	}
-
-	const port = "8080"
 
 	// Repository
 	queries := repository.New(pool)
@@ -78,9 +91,14 @@ func main() {
 	mux.Handle("GET /api/v1/{shortCode}", middleware.RequestLogging(logger)(http.HandlerFunc(urlsHandler.HandlerGetURL)))
 	mux.Handle("GET /api/v1/{shortCode}/stats", middleware.RequestLogging(logger)(http.HandlerFunc(urlsHandler.HandlerGetURLStats)))
 
+	port := os.Getenv("PORT")
+	if port == "" {
+		port = "8080"
+	}
+	
 	srv := &http.Server{
 		Addr:    ":" + port,
-		Handler: mux,
+		Handler: middleware.CORSMiddleware(allowedOrigins)(mux),
 	}
 
 	logger.Info(
