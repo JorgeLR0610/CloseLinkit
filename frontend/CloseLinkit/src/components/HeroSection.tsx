@@ -22,7 +22,7 @@ export default function HeroSection({ onShorten }: Props) {
 
       return (
         (url.protocol === "https:" || url.protocol === "http:") &&
-        url.hostname.length > 0
+        url.hostname.length > 0 && url.hostname.includes(".")
       );
     } catch {
       return false;

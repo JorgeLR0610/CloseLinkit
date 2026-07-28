@@ -88,14 +88,15 @@ func main() {
 
 	// Endpoints
 	mux.Handle("POST /api/v1/shorten", middleware.RequestLogging(logger)(http.HandlerFunc(urlsHandler.HandlerCreateURL)))
-	mux.Handle("GET /api/v1/{shortCode}", middleware.RequestLogging(logger)(http.HandlerFunc(urlsHandler.HandlerGetURL)))
 	mux.Handle("GET /api/v1/{shortCode}/stats", middleware.RequestLogging(logger)(http.HandlerFunc(urlsHandler.HandlerGetURLStats)))
+
+	mux.Handle("GET /{shortCode}", middleware.RequestLogging(logger)(http.HandlerFunc(urlsHandler.HandlerResolveShortURL)))
 
 	port := os.Getenv("PORT")
 	if port == "" {
 		port = "8080"
 	}
-	
+
 	srv := &http.Server{
 		Addr:    ":" + port,
 		Handler: middleware.CORSMiddleware(allowedOrigins)(mux),

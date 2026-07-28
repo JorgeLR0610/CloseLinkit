@@ -206,7 +206,7 @@ func TestURLHandler_HandlerGetURL(t *testing.T) {
 			req.SetPathValue("shortCode", tt.shortCode)
 			w := httptest.NewRecorder()
 
-			handler.HandlerGetURL(w, req)
+			handler.HandlerResolveShortURL(w, req)
 
 			if w.Code != tt.expectedStatus {
 				t.Errorf("expected status %d, got %d", tt.expectedStatus, w.Code)

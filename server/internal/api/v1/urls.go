@@ -11,6 +11,7 @@ import (
 	"github.com/JorgeLR0610/CloseLinkit/internal/repository"
 	"github.com/JorgeLR0610/CloseLinkit/internal/response"
 	"github.com/JorgeLR0610/CloseLinkit/internal/service"
+	"github.com/JorgeLR0610/CloseLinkit/web"
 )
 
 type URLServicer interface {
@@ -80,13 +81,17 @@ func (h *URLHandler) HandlerCreateURL(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-func (h *URLHandler) HandlerGetURL(w http.ResponseWriter, r *http.Request) {
+func (h *URLHandler) HandlerResolveShortURL(w http.ResponseWriter, r *http.Request) {
 	shortCode := r.PathValue("shortCode")
 
 	retrievedURL, err := h.service.ResolveShortCode(r.Context(), shortCode)
 	if err != nil {
 		if errors.Is(err, service.ErrNoURLFound) {
-			response.WriteError(w, http.StatusNotFound, "Sorry, we did not found the page you are looking for")
+			if err := web.ServeNotFoundPage(w); err != nil {
+				h.logger.Error("could not write 404 page",
+					slog.Any("error", err),
+				)
+			}
 			return
 		}
 
