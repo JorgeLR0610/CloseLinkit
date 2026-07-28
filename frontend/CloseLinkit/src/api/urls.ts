@@ -8,7 +8,7 @@ export async function shortenURL(originalURL: string): Promise<ShortenURLRespons
         headers: {
             'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ url: originalURL})
+        body: JSON.stringify({ url: originalURL })
     })
 
     if (!response.ok) {
@@ -16,5 +16,8 @@ export async function shortenURL(originalURL: string): Promise<ShortenURLRespons
         throw new Error(message || `Request failed with status ${response.status}`)
     }
 
-    return response.json()
+    const data = await response.json()
+    return {
+        shortURL: data.short_url
+    }
 }
