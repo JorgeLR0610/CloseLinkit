@@ -38,30 +38,86 @@
   border-top: 1px solid var(--surface-border);
   padding-top: 16px;
 }
-.share-text {
-  color: var(--text-secondary);
-  font-size: 0.9rem;
-}
 .social-icons {
   display: flex;
   gap: 12px;
 }
-.social-icon {
-  width: 32px;
-  height: 32px;
-  border-radius: 50%;
-  background: var(--surface-border);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-weight: bold;
-  font-size: 0.8rem;
-  color: var(--text-secondary);
-  cursor: pointer;
-  transition: all 0.2s;
+.share-button {
+    width: 42px;
+    height: 42px;
+
+    display: flex;
+    align-items: center;
+    justify-content: center;
+
+    border-radius: 50%;
+    background: var(--surface-border);
+
+    color: var(--text-secondary);
+    font-size: 1.5rem;
+
+    text-decoration: none;
+
+    transition:
+        transform .2s ease,
+        color .2s ease,
+        outline-color .2s ease
 }
-.social-icon:hover {
-  background: var(--text-secondary);
-  color: var(--bg-color);
-  transform: translateY(-2px);
+
+.share-button:hover {
+    transform: translateY(-2px);
+}
+
+.share-button:active {
+    transform: translateY(0) scale(0.95);
+}
+
+.share-button.whatsapp:hover,
+.share-button.whatsapp:focus-visible {
+  color: #25D366;
+}
+
+.share-button.whatsapp:focus-visible {
+  outline: 2px solid #25D366;
+  outline-offset: 2px;
+}
+
+.share-button.facebook:hover,
+.share-button.facebook:focus-visible {
+  color: #1877F2;
+}
+
+.share-button.facebook:focus-visible {
+  outline: 2px solid #1877F2;
+  outline-offset: 2px;
+}
+
+.share-button.linkedin:hover,
+.share-button.linkedin:focus-visible {
+    color: #0a66c2;
+}
+
+.share-button.linkedin:focus-visible {
+    outline: 2px solid #0a66c2;
+    outline-offset: 2px;
+}
+
+.share-button.x:hover,
+.share-button.x:focus-visible {
+  color: white;
+}
+
+.share-button.x:focus-visible {
+  outline: 2px solid white;
+  outline-offset: 2px;
+}
+
+.share-button.telegram:hover,
+.share-button.telegram:focus-visible {
+  color: #229ED9;
+}
+
+.share-button.telegram:focus-visible {
+  outline: 2px solid #229ED9;
+  outline-offset: 2px;
 }
