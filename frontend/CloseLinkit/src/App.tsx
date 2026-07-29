@@ -13,16 +13,18 @@ function App() {
   const [urlHistory, setURLHistory] = useState<URLItem[]>([])
   const [error, setError] = useState<string | null>(null)
 
-  const handleShortenURL = async (originalURL: string) => {
-    if (!originalURL.trim()) return;
+  const handleShortenURL = async (originalURL: string): Promise<boolean> => {
+    if (!originalURL.trim()) return false;
     
     try {
       setError(null)
       const data = await shortenURL(originalURL)
       setRecentURL(data.shortURL)
       setURLHistory(urlHistory => [{ originalURL: originalURL, shortURL: data.shortURL }, ...urlHistory])
+      return true;
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Unexpected error')
+      return false;
     }
   }
 
@@ -30,7 +32,12 @@ function App() {
     <div className="app-container">
       <Header />
       <main className="main-content">
-        <HeroSection onShorten={handleShortenURL} />
+        <HeroSection 
+          onShorten={handleShortenURL}
+          onClearGlobalError={() => {
+            if (error) setError(null)
+          }}
+        />
 
         {error && (
           <p className="hero-error fade-in" role="alert">

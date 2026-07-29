@@ -3,10 +3,11 @@ import type { SyntheticEvent } from 'react'
 import './HeroSection.css'
 
 interface Props {
-  onShorten: (url: string) => void;
+  onShorten: (url: string) => Promise<boolean>;
+  onClearGlobalError: () => void;
 }
 
-export default function HeroSection({ onShorten }: Props) {
+export default function HeroSection({ onShorten, onClearGlobalError }: Props) {
   const [url, setURL] = useState('')
   const [error, setError] = useState<string | null>(null)
 
@@ -29,17 +30,22 @@ export default function HeroSection({ onShorten }: Props) {
     }
   }
 
-  const handleSubmit = (e: SyntheticEvent) => {
+  const handleSubmit = async (e: SyntheticEvent) => {
     e.preventDefault()
 
     if (!isValidHttpURL(url)) {
-      setError("The provided URL has a wrong format")
+      setError("The provided URL is invalid or malformed")
       return;
     }
 
     setError(null);
-    onShorten(url);
-    setURL('')
+    onClearGlobalError();
+
+    const isSuccess = await onShorten(url);
+
+    if (isSuccess) {
+      setURL('')
+    }
   }
 
   return (
@@ -57,6 +63,7 @@ export default function HeroSection({ onShorten }: Props) {
           onChange={(e) => {
             setURL(e.target.value)
             if (error) setError(null)
+              onClearGlobalError()
         }}
         />
 

@@ -14,6 +14,8 @@ import (
 	"github.com/JorgeLR0610/CloseLinkit/web"
 )
 
+const internalErrorMsg = "There was an error on our end. Please try again later"
+
 type URLServicer interface {
 	CreateShortCode(ctx context.Context, originalURL string) (repository.CreateURLRow, error)
 	ResolveShortCode(ctx context.Context, shortCode string) (string, error)
@@ -47,7 +49,7 @@ func (h *URLHandler) HandlerCreateURL(w http.ResponseWriter, r *http.Request) {
 	decoder.DisallowUnknownFields()
 
 	if err := decoder.Decode(&urlParams); err != nil {
-		response.WriteError(w, http.StatusBadRequest, "Invalid JSON payload")
+		response.WriteError(w, http.StatusBadRequest, "The provided URL is invalid or malformed")
 		return
 	}
 
@@ -58,7 +60,7 @@ func (h *URLHandler) HandlerCreateURL(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 
-		response.WriteError(w, http.StatusInternalServerError, "There was an error on our end")
+		response.WriteError(w, http.StatusInternalServerError, internalErrorMsg)
 		h.logger.Error(
 			"could not create URL",
 			slog.String("method", r.Method),
@@ -95,7 +97,7 @@ func (h *URLHandler) HandlerResolveShortURL(w http.ResponseWriter, r *http.Reque
 			return
 		}
 
-		response.WriteError(w, http.StatusInternalServerError, "There was an error on our end")
+		response.WriteError(w, http.StatusInternalServerError, internalErrorMsg)
 		h.logger.Error(
 			"could not retrieve URL",
 			slog.String("method", r.Method),
@@ -118,7 +120,7 @@ func (h *URLHandler) HandlerGetURLStats(w http.ResponseWriter, r *http.Request) 
 			return
 		}
 
-		response.WriteError(w, http.StatusInternalServerError, "There was an error on our end")
+		response.WriteError(w, http.StatusInternalServerError, internalErrorMsg)
 		h.logger.Error(
 			"could not retrieve URL",
 			slog.String("method", r.Method),
