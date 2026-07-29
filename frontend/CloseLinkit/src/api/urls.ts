@@ -34,9 +34,15 @@ export async function shortenURL(originalURL: string): Promise<ShortenURLRespons
         }
 
     } catch (error) {
-        if (!navigator.onLine) {
-            throw new Error('You seem to be offline. Please check your internet connection.');
+        // When network or CORS errors occur, fetch usually throws a TypeError exception
+        if (error instanceof TypeError) {
+            // MDN itself warns that navigator.onLine is unreliable and should be used to provide
+            // hints when the user may seem offline
+            if (!navigator.onLine) {
+                throw new Error('You seem to be offline. Please check your internet connection.');
+            }
+            throw new Error('Unable to reach the service. Please try again later.');
         }
-        throw new Error('Unable to reach the service. Please try again later.');
+        throw error;
     }
 }
