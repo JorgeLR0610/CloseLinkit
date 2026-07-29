@@ -29,7 +29,7 @@
   font-weight: 500;
 }
 .copy-btn:hover {
-  background: rgba(255, 255, 255, 0.2);
+  background: #a5b4fc;
 }
 .recent-bottom {
   display: flex;

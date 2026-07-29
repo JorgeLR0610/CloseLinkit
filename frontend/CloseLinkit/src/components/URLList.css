@@ -38,7 +38,7 @@
   color: #a5b4fc;
 }
 .copy-btn-small {
-  background: transparent;
+  background: rgba(255, 255, 255, 0.1);
   color: var(--text-secondary);
   border: 1px solid var(--surface-border);
   padding: 6px 12px;
@@ -46,6 +46,6 @@
   font-size: 0.85rem;
 }
 .copy-btn-small:hover {
-  background: rgba(255, 255, 255, 0.1);
+  background: #a5b4fc;
   color: var(--text-primary);
 }
