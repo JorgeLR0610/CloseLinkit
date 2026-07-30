@@ -89,6 +89,9 @@ func (h *URLHandler) HandlerResolveShortURL(w http.ResponseWriter, r *http.Reque
 	retrievedURL, err := h.service.ResolveShortCode(r.Context(), shortCode)
 	if err != nil {
 		if errors.Is(err, service.ErrNoURLFound) {
+			// Serve a static 404 page during the initial release.
+			// Future versions will redirect to the React application,
+			// which will render the dedicated Not Found page.
 			if err := web.ServeNotFoundPage(w); err != nil {
 				h.logger.Error("could not write 404 page",
 					slog.Any("error", err),
