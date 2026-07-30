@@ -1,12 +1,12 @@
 import { useState } from 'react'
-import Header from './components/Header'
-import HeroSection from './components/HeroSection'
-import RecentURLBox from './components/RecentURLBox'
-import URLList from './components/URLList'
-import FooterCTA from './components/FooterCTA'
+import Header from './components/Header/Header'
+import HeroSection from './components/HeroSection/HeroSection'
+import RecentURLBox from './components/RecentURLBox/RecentURLBox'
+import URLList from './components/URLList/URLList'
+import FooterCTA from './components/Footer/FooterCTA'
 import './App.css'
 import type { URLItem } from './types/url'
-import { shortenURL } from './api/urls'
+import { shortenURL } from './services/urls'
 
 function App() {
   const [recentURL, setRecentURL] = useState<string | null>(null)

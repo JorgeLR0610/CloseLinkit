@@ -5,9 +5,9 @@ import {
   FaWhatsapp, 
   FaXTwitter 
 } from 'react-icons/fa6'
-import CopyButton from './CopyButton'
+import CopyButton from '../CopyButton/CopyButton'
 import './RecentURLBox.css'
-import ShareButton from './ShareButton'
+import ShareButton from '../ShareButton/ShareButton'
 
 export default function RecentURLBox({ shortURL }: { shortURL: string }) {
   const encodedURL = encodeURIComponent(shortURL)

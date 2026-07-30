@@ -1,5 +1,5 @@
-import CopyButton from './CopyButton'
-import type { URLItem } from '../types/url'
+import CopyButton from '../CopyButton/CopyButton'
+import type { URLItem } from '../../types/url'
 import './URLList.css'
 
 export default function URLList({ history }: { history: URLItem[] }) {
