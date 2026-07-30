@@ -3,7 +3,6 @@ import Header from './components/Header/Header'
 import HeroSection from './components/HeroSection/HeroSection'
 import RecentURLBox from './components/RecentURLBox/RecentURLBox'
 import URLList from './components/URLList/URLList'
-import FooterCTA from './components/Footer/FooterCTA'
 import './App.css'
 import type { URLItem } from './types/url'
 import { shortenURL } from './services/urls'
@@ -49,7 +48,6 @@ function App() {
         
         {urlHistory.length > 0 && <URLList history={urlHistory} />}
       </main>
-      <FooterCTA />
     </div>
   )
 }

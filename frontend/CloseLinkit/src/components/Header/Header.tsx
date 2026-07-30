@@ -10,11 +10,6 @@ export default function Header() {
         </svg>
         <span className="logo-text">CloseLinkit</span>
       </div>
-      <nav className="nav-links">
-        <button className="btn-text">Prices</button>
-        <button className="btn-text">Login</button>
-        <button className="btn-primary">Sign up</button>
-      </nav>
     </header>
   )
 }
