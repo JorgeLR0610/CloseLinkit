@@ -1,18 +1,35 @@
 # Architecture
 
-## Objective
+## Overview
 
-CloseLinkit is a RESTful URL shortening service.
+CloseLinkit is a URL shortening service composed of a Go backend, a React frontend and a PostgreSQL database.
 
-The current version provides an HTTP API for creating, retrieving and resolving shortened URLs.
+The system exposes a REST API and a web client that allows users to create, retrieve and resolve shortened URLs.
 
-Future iterations will introduce a React frontend, user authentication and deployment automation.
+---
 
-## Components
+## Technology Stack
+
+| Component | Technology |
+|----------|------------|
+| Backend | Go (net/http) |
+| Frontend | React + TypeScript + Vite |
+| Database | PostgreSQL |
+| SQL Code Generation | sqlc |
+| Migrations Tool | goose |
+| Containerization | Docker Compose |
+
+---
+
+## System Components
 
 ### Backend (Go)
 
-Exposes the REST API, implements the business logic and interacts with the database.
+Implements the REST API, business logic, and communication with the database.
+
+### Frontend (React)
+
+Provides the graphical user interface (GUI) and communicates with the backend through HTTP requests.
 
 ### PostgreSQL
 
@@ -20,52 +37,70 @@ Persists application data.
 
 ### Docker Compose
 
-Provides the local development environment.
+Provides the local development environment by orchestrating the application services.
 
-## Layer Responsibilities
+---
 
-### REST API
+## Backend Layers
 
-Responsible for handling HTTP requests and responses.
+### Handler Layer
+
+Receives HTTP requests, validates input, invokes the service layer, and builds HTTP responses.
 
 ### Service Layer
 
-Contains the application's business logic.
+Implements the application's business logic and coordinates domain operations.
 
 ### Repository Layer
 
-Provides data persistence and database access.
+Provides database access through SQLC-generated queries.
 
-### PostgreSQL
+### Databae (PostgreSQL)
 
-Stores application data.
+Persists application data.
+
+---
 
 ## Request Flow
 
 ```text
-Client
-↓
-Handler
-↓
-Service
-↓
-Repository
-↓
-PostgreSQL
-↓
-Service
-↓
-Handler
-↓
-Client
+                Browser
+                   │
+                   ▼
+             React Frontend
+                   │
+              HTTP / JSON
+                   │
+                   ▼
+             Handler Layer
+                   │
+                   ▼
+             Service Layer
+                   │
+                   ▼
+            Repository Layer
+                   │
+                   ▼
+               PostgreSQL
 ```
 
-## Future Architecture
-Future versions are expected to include:
+The response follows the same path in reverse.
 
-- React frontend
-- JWT authentication
-- Docker image builds
+---
+
+## Roadmap
+
+### Planned Features
+
+- Analytics dashboard
+- Custom short URLs
+- User authentication (JWT)
+- User accounts
+- Link management
+
+## Infrastructure
+
+- Docker image publishing
 - CI/CD pipeline
 - AWS deployment
-- Kubernetes orchestration
+- Kubernetes manifests
