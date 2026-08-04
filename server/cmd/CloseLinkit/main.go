@@ -13,7 +13,6 @@ import (
 	"github.com/JorgeLR0610/CloseLinkit/internal/repository"
 	"github.com/JorgeLR0610/CloseLinkit/internal/service"
 	"github.com/jackc/pgx/v5/pgxpool"
-	"github.com/joho/godotenv"
 )
 
 func main() {
@@ -22,14 +21,6 @@ func main() {
 	logger := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{
 		Level: slog.LevelInfo,
 	}))
-
-	if err := godotenv.Load("../.env"); err != nil {
-		logger.Error(
-			"could not load .env file",
-			slog.Any("error", err),
-		)
-		os.Exit(1)
-	}
 
 	// Load allowed origins env var
 	corsOriginRaw := os.Getenv("ALLOWED_ORIGINS")
@@ -92,19 +83,14 @@ func main() {
 
 	mux.Handle("GET /{shortCode}", middleware.RequestLogging(logger)(http.HandlerFunc(urlsHandler.HandlerResolveShortURL)))
 
-	port := os.Getenv("PORT")
-	if port == "" {
-		port = "8080"
-	}
-
 	srv := &http.Server{
-		Addr:    ":" + port,
+		Addr:    ":8080",
 		Handler: middleware.CORSMiddleware(allowedOrigins)(mux),
 	}
 
 	logger.Info(
 		"server running",
-		slog.String("port", port),
+		slog.String("port", srv.Addr),
 	)
 
 	if err := srv.ListenAndServe(); err != nil {
