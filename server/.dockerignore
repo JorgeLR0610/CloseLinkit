@@ -1,0 +1,27 @@
+# Exclude locally vendored dependencies
+vendor/
+
+# Exclude "build-time" ignore files
+Dockerfile*
+.dockerignore
+.gcloudignore
+
+# Exclude git history and configuration
+.git
+.gitignore
+
+# Exclude binary artifacts and build caches
+**/bin
+**/obj
+**/*.exe
+**/*.test
+**/*.out
+
+# Exclude IDE and OS specific files
+**/.idea
+**/.vscode
+**/.DS_Store
+
+# Exclude environment configuration files
+.env
+*.env

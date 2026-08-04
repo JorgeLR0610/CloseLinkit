@@ -1,18 +1,20 @@
 services:
-  postgres-db:
+  postgres:
     image: postgres:18.4
     container_name: postgresql
     restart: unless-stopped
     shm_size: 2252mb
     environment:
+      - POSTGRES_USER=${POSTGRES_USER}
       - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
       - POSTGRES_DB=${POSTGRES_DB}
-      - TZ=America/Chihuahua
+      - TZ=${DB_TIMEZONE}
     ports:
-      - "127.0.0.1:${DB_PORT}:5432"
+      # Expose DB to localhost to run migrations during development
+      # Section should be removed in production
+      - "127.0.0.1:${DB_HOST_PORT}:5432"
     volumes:
       - pg_data_CloseLinkit:/var/lib/postgresql
-
     command:
       - "postgres"
       - "-c"
@@ -21,6 +23,44 @@ services:
       - "work_mem=16MB"
       - "-c"
       - "log_statement=all"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+      start_period: 20s
+
+  api:
+    build: 
+      context: ./server
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    environment:
+      - DB_URL=${DB_URL}
+      - ALLOWED_ORIGINS=${ALLOWED_ORIGINS}
+      - BASE_URL=${BASE_URL}
+    ports:
+      - "${API_HOST_PORT}:8080"
+    depends_on:
+      postgres:
+        condition: service_healthy
+        restart: true
+
+  web:
+    build: 
+      context: ./frontend
+      dockerfile: Dockerfile.dev
+    restart: unless-stopped
+    ports:
+      - "${VITE_HOST_PORT}:5173"
+    volumes:
+      # Bind mount to enable Hot Module Replacement (HMR) 
+      - ./frontend:/app
+      - /app/node_modules
+    environment:
+      - VITE_API_BASE_URL=${VITE_API_BASE_URL}
+    depends_on:
+      - api
 
 volumes:
   pg_data_CloseLinkit:

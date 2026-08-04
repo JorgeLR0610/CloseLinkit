@@ -1,0 +1,49 @@
+# Dependencies
+node_modules/
+
+# Build output
+dist/
+out/
+
+# Vite cache
+.vite/
+
+# Test and coverage artifacts
+coverage/
+cypress/screenshots/
+cypress/videos/
+
+# Logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# Environment files
+.env*
+
+# TypeScript cache
+*.tsbuildinfo
+
+# Editor files
+.vscode/
+.idea/
+*.swp
+.DS_Store
+Thumbs.db
+
+# Docker files
+Dockerfile*
+.dockerignore
+
+# AI/tooling artifacts
+.openai/
+anthropic/
+.azureai/
+.vercel_ai/
+*.ai.*
+*.llm.*
+chat_history/
+ai_logs/
+ai_cache/
