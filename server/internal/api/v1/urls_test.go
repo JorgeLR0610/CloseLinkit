@@ -20,16 +20,16 @@ import (
 
 // mockURLService implements api.URLServicer
 type mockURLService struct {
-	CreateShortCodeFunc  func(ctx context.Context, originalURL string) (repository.CreateURLRow, error)
+	CreateShortCodeFunc  func(ctx context.Context, originalURL string) (string, error)
 	ResolveShortCodeFunc func(ctx context.Context, shortCode string) (string, error)
 	GetURLStatsFunc      func(ctx context.Context, shortCode string) (repository.GetURLStatsRow, error)
 }
 
-func (m *mockURLService) CreateShortCode(ctx context.Context, originalURL string) (repository.CreateURLRow, error) {
+func (m *mockURLService) CreateShortCode(ctx context.Context, originalURL string) (string, error) {
 	if m.CreateShortCodeFunc != nil {
 		return m.CreateShortCodeFunc(ctx, originalURL)
 	}
-	return repository.CreateURLRow{}, nil
+	return "", nil
 }
 
 func (m *mockURLService) ResolveShortCode(ctx context.Context, shortCode string) (string, error) {
@@ -56,19 +56,14 @@ func TestURLHandler_HandlerCreateURL(t *testing.T) {
 		expectedStatus int
 	}{
 		{
-			name:        "Valid JSON",
+			name:        "Valid short code",
 			requestBody: `{"url":"https://example.com"}`,
 			setupMock: func() *mockURLService {
 				return &mockURLService{
-					CreateShortCodeFunc: func(ctx context.Context, originalURL string) (repository.CreateURLRow, error) {
+					CreateShortCodeFunc: func(ctx context.Context, originalURL string) (string, error) {
 						var uuid pgtype.UUID
 						uuid.Scan("123e4567-e89b-12d3-a456-426614174000")
-						return repository.CreateURLRow{
-							ID:          uuid,
-							OriginalUrl: "https://example.com",
-							ShortCode:   "abcdef",
-							CreatedAt:   pgtype.Timestamptz{Time: time.Now(), Valid: true},
-						}, nil
+						return "abcdef", nil
 					},
 				}
 			},
@@ -95,8 +90,8 @@ func TestURLHandler_HandlerCreateURL(t *testing.T) {
 			requestBody: `{"url":"://invalid"}`,
 			setupMock: func() *mockURLService {
 				return &mockURLService{
-					CreateShortCodeFunc: func(ctx context.Context, originalURL string) (repository.CreateURLRow, error) {
-						return repository.CreateURLRow{}, service.ErrInvalidURL
+					CreateShortCodeFunc: func(ctx context.Context, originalURL string) (string, error) {
+						return "", service.ErrInvalidURL
 					},
 				}
 			},
@@ -107,8 +102,8 @@ func TestURLHandler_HandlerCreateURL(t *testing.T) {
 			requestBody: `{"url":"https://example.com"}`,
 			setupMock: func() *mockURLService {
 				return &mockURLService{
-					CreateShortCodeFunc: func(ctx context.Context, originalURL string) (repository.CreateURLRow, error) {
-						return repository.CreateURLRow{}, errors.New("db connection lost")
+					CreateShortCodeFunc: func(ctx context.Context, originalURL string) (string, error) {
+						return "", errors.New("db connection lost")
 					},
 				}
 			},

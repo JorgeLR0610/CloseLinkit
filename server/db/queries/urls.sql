@@ -1,7 +1,7 @@
 -- name: CreateURL :one
 INSERT INTO urls (original_url, short_code)
 VALUES ($1, $2)
-RETURNING id, original_url, short_code, created_at;
+RETURNING short_code;
 
 -- name: GetURL :one
 SELECT original_url

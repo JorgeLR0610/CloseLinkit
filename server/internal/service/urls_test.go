@@ -12,16 +12,16 @@ import (
 
 // Mock for URLRepository
 type mockURLRepository struct {
-	CreateURLFunc           func(ctx context.Context, arg repository.CreateURLParams) (repository.CreateURLRow, error)
+	CreateURLFunc           func(ctx context.Context, arg repository.CreateURLParams) (string, error)
 	createURLCalls          int
 }
 
-func (m *mockURLRepository) CreateURL(ctx context.Context, arg repository.CreateURLParams) (repository.CreateURLRow, error) {
+func (m *mockURLRepository) CreateURL(ctx context.Context, arg repository.CreateURLParams) (string, error) {
 	m.createURLCalls++
 	if m.CreateURLFunc != nil {
 		return m.CreateURLFunc(ctx, arg)
 	}
-	return repository.CreateURLRow{}, nil
+	return "", nil
 }
 
 func (m *mockURLRepository) GetURL(ctx context.Context, shortCode string) (string, error) {
@@ -70,10 +70,8 @@ func TestURLService_CreateShortCode(t *testing.T) {
 			},
 			setupRepo: func() *mockURLRepository {
 				return &mockURLRepository{
-					CreateURLFunc: func(ctx context.Context, arg repository.CreateURLParams) (repository.CreateURLRow, error) {
-						return repository.CreateURLRow{
-							ShortCode: arg.ShortCode,
-						}, nil
+					CreateURLFunc: func(ctx context.Context, arg repository.CreateURLParams) (string, error) {
+						return arg.ShortCode, nil
 					},
 				}
 			},
@@ -122,17 +120,15 @@ func TestURLService_CreateShortCode(t *testing.T) {
 			setupRepo: func() *mockURLRepository {
 				callCount := 0
 				return &mockURLRepository{
-					CreateURLFunc: func(ctx context.Context, arg repository.CreateURLParams) (repository.CreateURLRow, error) {
+					CreateURLFunc: func(ctx context.Context, arg repository.CreateURLParams) (string, error) {
 						callCount++
 						if callCount == 1 {
-							return repository.CreateURLRow{}, &pgconn.PgError{
+							return "", &pgconn.PgError{
 								Code:           "23505",
 								ConstraintName: "urls_short_code_unique",
 							}
 						}
-						return repository.CreateURLRow{
-							ShortCode: arg.ShortCode,
-						}, nil
+						return arg.ShortCode, nil
 					},
 				}
 			},
@@ -152,8 +148,8 @@ func TestURLService_CreateShortCode(t *testing.T) {
 			},
 			setupRepo: func() *mockURLRepository {
 				return &mockURLRepository{
-					CreateURLFunc: func(ctx context.Context, arg repository.CreateURLParams) (repository.CreateURLRow, error) {
-						return repository.CreateURLRow{}, &pgconn.PgError{
+					CreateURLFunc: func(ctx context.Context, arg repository.CreateURLParams) (string, error) {
+						return "", &pgconn.PgError{
 							Code:           "23505",
 							ConstraintName: "urls_short_code_unique",
 						}
@@ -175,8 +171,8 @@ func TestURLService_CreateShortCode(t *testing.T) {
 			},
 			setupRepo: func() *mockURLRepository {
 				return &mockURLRepository{
-					CreateURLFunc: func(ctx context.Context, arg repository.CreateURLParams) (repository.CreateURLRow, error) {
-						return repository.CreateURLRow{}, errors.New("connection failed")
+					CreateURLFunc: func(ctx context.Context, arg repository.CreateURLParams) (string, error) {
+						return "", errors.New("connection failed")
 					},
 				}
 			},
@@ -207,8 +203,8 @@ func TestURLService_CreateShortCode(t *testing.T) {
 				if err != nil {
 					t.Fatalf("did not expect error, got %v", err)
 				}
-				if result.ShortCode != tt.expectedShortCode {
-					t.Errorf("expected shortCode %s, got %s", tt.expectedShortCode, result.ShortCode)
+				if result != tt.expectedShortCode {
+					t.Errorf("expected shortCode %s, got %s", tt.expectedShortCode, result)
 				}
 			}
 

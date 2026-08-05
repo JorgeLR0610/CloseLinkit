@@ -14,7 +14,7 @@ import (
 const createURL = `-- name: CreateURL :one
 INSERT INTO urls (original_url, short_code)
 VALUES ($1, $2)
-RETURNING id, original_url, short_code, created_at
+RETURNING short_code
 `
 
 type CreateURLParams struct {
@@ -22,23 +22,11 @@ type CreateURLParams struct {
 	ShortCode   string
 }
 
-type CreateURLRow struct {
-	ID          pgtype.UUID
-	OriginalUrl string
-	ShortCode   string
-	CreatedAt   pgtype.Timestamptz
-}
-
-func (q *Queries) CreateURL(ctx context.Context, arg CreateURLParams) (CreateURLRow, error) {
+func (q *Queries) CreateURL(ctx context.Context, arg CreateURLParams) (string, error) {
 	row := q.db.QueryRow(ctx, createURL, arg.OriginalUrl, arg.ShortCode)
-	var i CreateURLRow
-	err := row.Scan(
-		&i.ID,
-		&i.OriginalUrl,
-		&i.ShortCode,
-		&i.CreatedAt,
-	)
-	return i, err
+	var short_code string
+	err := row.Scan(&short_code)
+	return short_code, err
 }
 
 const getURL = `-- name: GetURL :one

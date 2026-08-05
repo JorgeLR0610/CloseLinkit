@@ -13,7 +13,7 @@ import (
 )
 
 type URLRepository interface {
-	CreateURL(ctx context.Context, arg repository.CreateURLParams) (repository.CreateURLRow, error)
+	CreateURL(ctx context.Context, arg repository.CreateURLParams) (string, error)
 	GetURL(ctx context.Context, shortCode string) (string, error)
 	GetURLStats(ctx context.Context, shortCode string) (repository.GetURLStatsRow, error)
 	IncrementClickCount(ctx context.Context, shortCode string) error
@@ -46,25 +46,25 @@ func NewURLService(repo URLRepository, generator ShortCodeGenerator) *URLService
 	}
 }
 
-func (s *URLService) CreateShortCode(ctx context.Context, originalURL string) (repository.CreateURLRow, error) {
+func (s *URLService) CreateShortCode(ctx context.Context, originalURL string) (string, error) {
 	parsedURL, err := url.Parse(strings.TrimSpace(originalURL))
 	if err != nil {
-		return repository.CreateURLRow{}, ErrInvalidURL
+		return "", ErrInvalidURL
 	}
 
 	if parsedURL.Scheme != "http" && parsedURL.Scheme != "https" {
-		return repository.CreateURLRow{}, ErrInvalidURLScheme
+		return "", ErrInvalidURLScheme
 	}
 
 	if parsedURL.Hostname() == "" {
-		return repository.CreateURLRow{}, ErrNoHost
+		return "", ErrNoHost
 	}
 
 	// Try to create and store short code, up to the defined number of attempts
 	for range maxRetries {
 		shortCode, err := s.generator.GenerateShortCode()
 		if err != nil {
-			return repository.CreateURLRow{}, fmt.Errorf("error generating short code: %w", err)
+			return "", fmt.Errorf("error generating short code: %w", err)
 		}
 
 		createdURL, err := s.repo.CreateURL(ctx, repository.CreateURLParams{
@@ -77,12 +77,12 @@ func (s *URLService) CreateShortCode(ctx context.Context, originalURL string) (r
 					continue
 				}
 			}
-			return repository.CreateURLRow{}, fmt.Errorf("could not insert URL to database: %w", err)
+			return "", fmt.Errorf("could not insert URL to database: %w", err)
 		}
 
 		return createdURL, nil
 	}
-	return repository.CreateURLRow{}, ErrCouldNotGenerateUniqueShortCode
+	return "", ErrCouldNotGenerateUniqueShortCode
 }
 
 func (s *URLService) ResolveShortCode(ctx context.Context, shortCode string) (string, error) {
