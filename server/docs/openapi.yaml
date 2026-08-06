@@ -1,0 +1,137 @@
+openapi: 3.0.3
+info:
+  title: CloseLinkit API
+  description: RESTful API for CloseLinkit URL shortening service.
+  version: 1.0.0
+servers:
+  - url: http://localhost:8080
+    description: Local development server
+paths:
+  /api/v1/shorten:
+    post:
+      summary: Create a shortened URL
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateURLRequest"
+      responses:
+        "201":
+          description: Successfully created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CreateURLResponse"
+        "400":
+          description: Bad request or invalid URL format
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+  /{shortCode}:
+    get:
+      summary: Redirect to the original URL
+      description: >
+        Returns a 302 redirect. Note: testing this via Swagger UI's "Try it out"
+        may show a NetworkError, since browsers auto-follow redirects and the
+        destination URL is external — this is expected browser behavior, not
+        an API error. Use curl -v to inspect the raw 302 response.
+      parameters:
+        - name: shortCode
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "302":
+          description: Found - Redirects to original URL
+          headers:
+            Location:
+              description: The original URL
+              schema:
+                type: string
+        "404":
+          description: URL not found - serves a static HTML 404 page
+          content:
+            text/html:
+              schema:
+                type: string
+        "500":
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+  /api/v1/{shortCode}/stats:
+    get:
+      summary: Retrieve statistics for a shortened URL
+      parameters:
+        - name: shortCode
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GetURLStatsResponse"
+        "404":
+          description: URL not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+components:
+  schemas:
+    CreateURLRequest:
+      type: object
+      required:
+        - url
+      properties:
+        url:
+          type: string
+          format: uri
+          example: https://example.com
+    CreateURLResponse:
+      type: object
+      properties:
+        short_url:
+          type: string
+          format: uri
+          example: http://closelinkit.test/abcdefg
+    GetURLStatsResponse:
+      type: object
+      properties:
+        original_url:
+          type: string
+          format: uri
+          example: https://example.com
+        click_count:
+          type: integer
+          example: 42
+        created_at:
+          type: string
+          format: date-time
+          example: 2024-07-26T20:12:00Z
+    ErrorResponse:
+      type: object
+      properties:
+        error:
+          type: string
+          example: There was an error on our end
