@@ -7,12 +7,14 @@ import (
 	"os"
 	"strings"
 
+	"github.com/JorgeLR0610/CloseLinkit/docs"
 	"github.com/JorgeLR0610/CloseLinkit/internal/api/v1"
 	"github.com/JorgeLR0610/CloseLinkit/internal/generator"
 	"github.com/JorgeLR0610/CloseLinkit/internal/middleware"
 	"github.com/JorgeLR0610/CloseLinkit/internal/repository"
 	"github.com/JorgeLR0610/CloseLinkit/internal/service"
 	"github.com/jackc/pgx/v5/pgxpool"
+	"github.com/swaggest/swgui/v5emb"
 )
 
 func main() {
@@ -82,6 +84,19 @@ func main() {
 	mux.Handle("GET /api/v1/{shortCode}/stats", middleware.RequestLogging(logger)(http.HandlerFunc(urlsHandler.HandlerGetURLStats)))
 
 	mux.Handle("GET /{shortCode}", middleware.RequestLogging(logger)(http.HandlerFunc(urlsHandler.HandlerResolveShortURL)))
+
+	// Swagger UI
+	mux.Handle("GET /openapi.yaml", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/yaml")
+		w.Write(docs.OpenAPISpec)
+	}))
+
+	mux.Handle("/docs/", v5emb.New(
+		"CloseLinkit API",
+		"/openapi.yaml",
+		"/docs/",
+	))
+
 
 	srv := &http.Server{
 		Addr:    ":8080",
