@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"os"
 	"strings"
+	"time"
 
 	"github.com/JorgeLR0610/CloseLinkit/docs"
 	"github.com/JorgeLR0610/CloseLinkit/internal/api/v1"
@@ -88,7 +89,9 @@ func main() {
 	// Swagger UI
 	mux.Handle("GET /openapi.yaml", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/yaml")
-		w.Write(docs.OpenAPISpec)
+		if _, err = w.Write(docs.OpenAPISpec); err != nil {
+			logger.Error("could not write openapi spec", slog.Any("error", err))
+		}
 	}))
 
 	mux.Handle("/docs/", v5emb.New(
@@ -97,10 +100,13 @@ func main() {
 		"/docs/",
 	))
 
-
 	srv := &http.Server{
-		Addr:    ":8080",
-		Handler: middleware.CORSMiddleware(allowedOrigins)(mux),
+		Addr:              ":8080",
+		Handler:           middleware.CORSMiddleware(allowedOrigins)(mux),
+		ReadHeaderTimeout: 5 * time.Second,
+		ReadTimeout:       10 * time.Second,
+		WriteTimeout:      10 * time.Second,
+		IdleTimeout:       120 * time.Second,
 	}
 
 	logger.Info(

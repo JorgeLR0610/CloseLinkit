@@ -12,7 +12,7 @@ function App() {
     try {
       const stored = localStorage.getItem("history")
       return stored ? JSON.parse(stored) : []
-    } catch (error) {
+    } catch {
       return []
     }
   })

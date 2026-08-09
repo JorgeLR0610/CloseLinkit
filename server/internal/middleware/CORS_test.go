@@ -13,7 +13,9 @@ func TestCORSMiddleware(t *testing.T) {
 
 	nextHandler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
-		w.Write([]byte("OK"))
+		if _, err := w.Write([]byte("OK")); err != nil {
+			t.Fatalf("could not write response: %v", err)
+		}
 	})
 
 	corsMiddleware := middleware.CORSMiddleware(allowedOrigins)

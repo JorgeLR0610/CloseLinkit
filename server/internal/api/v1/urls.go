@@ -38,6 +38,12 @@ func NewURLHandler(svc URLServicer, logger *slog.Logger, baseURL string) *URLHan
 	}
 }
 
+func (h *URLHandler) writeErrorLogged(w http.ResponseWriter, code int, msg string) {
+	if err := response.WriteError(w, code, msg); err != nil {
+		h.logger.Error("could not write error response", slog.Any("error", err))
+	}
+}
+
 func (h *URLHandler) HandlerCreateURL(w http.ResponseWriter, r *http.Request) {
 
 	type urlCreationParams struct {
@@ -49,18 +55,18 @@ func (h *URLHandler) HandlerCreateURL(w http.ResponseWriter, r *http.Request) {
 	decoder.DisallowUnknownFields()
 
 	if err := decoder.Decode(&urlParams); err != nil {
-		response.WriteError(w, http.StatusBadRequest, "The provided URL is invalid or malformed")
+		h.writeErrorLogged(w, http.StatusBadRequest, "The provided URL is invalid or malformed")
 		return
 	}
 
 	shortCode, err := h.service.CreateShortCode(r.Context(), urlParams.OriginalURL)
 	if err != nil {
 		if errors.Is(err, service.ErrInvalidURLScheme) || errors.Is(err, service.ErrNoHost) || errors.Is(err, service.ErrInvalidURL) {
-			response.WriteError(w, http.StatusBadRequest, err.Error())
+			h.writeErrorLogged(w, http.StatusBadRequest, err.Error())
 			return
 		}
 
-		response.WriteError(w, http.StatusInternalServerError, internalErrorMsg)
+		h.writeErrorLogged(w, http.StatusInternalServerError, internalErrorMsg)
 		h.logger.Error(
 			"could not create URL",
 			slog.String("method", r.Method),
@@ -100,7 +106,7 @@ func (h *URLHandler) HandlerResolveShortURL(w http.ResponseWriter, r *http.Reque
 			return
 		}
 
-		response.WriteError(w, http.StatusInternalServerError, internalErrorMsg)
+		h.writeErrorLogged(w, http.StatusInternalServerError, internalErrorMsg)
 		h.logger.Error(
 			"could not retrieve URL",
 			slog.String("method", r.Method),
@@ -110,6 +116,7 @@ func (h *URLHandler) HandlerResolveShortURL(w http.ResponseWriter, r *http.Reque
 		return
 	}
 
+	// #nosec G710 -- Mitigated: URL is sanitized in both React Client and API Service Layer
 	http.Redirect(w, r, retrievedURL, http.StatusFound)
 }
 
@@ -119,11 +126,11 @@ func (h *URLHandler) HandlerGetURLStats(w http.ResponseWriter, r *http.Request) 
 	stats, err := h.service.GetURLStats(r.Context(), shortCode)
 	if err != nil {
 		if errors.Is(err, service.ErrNoURLFound) {
-			response.WriteError(w, http.StatusNotFound, "Sorry, we did not found the page you are looking for")
+			h.writeErrorLogged(w, http.StatusNotFound, "Sorry, we did not found the page you are looking for")
 			return
 		}
 
-		response.WriteError(w, http.StatusInternalServerError, internalErrorMsg)
+		h.writeErrorLogged(w, http.StatusInternalServerError, internalErrorMsg)
 		h.logger.Error(
 			"could not retrieve URL",
 			slog.String("method", r.Method),

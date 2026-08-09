@@ -12,8 +12,8 @@ import (
 
 // Mock for URLRepository
 type mockURLRepository struct {
-	CreateURLFunc           func(ctx context.Context, arg repository.CreateURLParams) (string, error)
-	createURLCalls          int
+	CreateURLFunc  func(ctx context.Context, arg repository.CreateURLParams) (string, error)
+	createURLCalls int
 }
 
 func (m *mockURLRepository) CreateURL(ctx context.Context, arg repository.CreateURLParams) (string, error) {

@@ -22,7 +22,9 @@ func TestRequestLogging(t *testing.T) {
 			name: "Explicit status code",
 			handlerFunc: func(w http.ResponseWriter, r *http.Request) {
 				w.WriteHeader(http.StatusCreated)
-				w.Write([]byte("created body"))
+				if _, err := w.Write([]byte("created body")); err != nil {
+					t.Fatalf("could not write response: %v", err)
+				}
 			},
 			expectedStatus: http.StatusCreated,
 			expectedBody:   "created body",
@@ -30,7 +32,9 @@ func TestRequestLogging(t *testing.T) {
 		{
 			name: "Implicit status code (200 OK)",
 			handlerFunc: func(w http.ResponseWriter, r *http.Request) {
-				w.Write([]byte("implicit ok body"))
+				if _, err := w.Write([]byte("implicit ok body")); err != nil {
+					t.Fatalf("could not write response: %v", err)
+				}
 			},
 			expectedStatus: http.StatusOK,
 			expectedBody:   "implicit ok body",

@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"net"
 	"net/url"
 	"strings"
 
@@ -46,6 +47,31 @@ func NewURLService(repo URLRepository, generator ShortCodeGenerator) *URLService
 	}
 }
 
+func isValidHost(hostname string) bool {
+	if hostname == "localhost" || hostname == "" {
+		return false
+	}
+
+	ip := net.ParseIP(hostname)
+	if ip == nil {
+		return true
+	}
+
+	if ip.IsLoopback() {
+		return false
+	}
+
+	if ip.IsLinkLocalUnicast() || ip.IsLinkLocalMulticast() {
+		return false
+	}
+
+	if ip.IsPrivate() {
+		return false
+	}
+
+	return true
+}
+
 func (s *URLService) CreateShortCode(ctx context.Context, originalURL string) (string, error) {
 	parsedURL, err := url.Parse(strings.TrimSpace(originalURL))
 	if err != nil {
@@ -56,7 +82,7 @@ func (s *URLService) CreateShortCode(ctx context.Context, originalURL string) (s
 		return "", ErrInvalidURLScheme
 	}
 
-	if parsedURL.Hostname() == "" {
+	if !isValidHost(parsedURL.Hostname()) {
 		return "", ErrNoHost
 	}
 

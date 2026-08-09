@@ -5,7 +5,7 @@ import (
 )
 
 type CreateURLResponse struct {
-	ShortURL  string `json:"short_url"`
+	ShortURL string `json:"short_url"`
 }
 
 type GetURLStatsResponse struct {

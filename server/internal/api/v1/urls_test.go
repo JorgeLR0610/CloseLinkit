@@ -62,7 +62,9 @@ func TestURLHandler_HandlerCreateURL(t *testing.T) {
 				return &mockURLService{
 					CreateShortCodeFunc: func(ctx context.Context, originalURL string) (string, error) {
 						var uuid pgtype.UUID
-						uuid.Scan("123e4567-e89b-12d3-a456-426614174000")
+						if err := uuid.Scan("123e4567-e89b-12d3-a456-426614174000"); err != nil {
+							t.Fatalf("could not write response: %v", err)
+						}
 						return "abcdef", nil
 					},
 				}
