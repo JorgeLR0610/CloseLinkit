@@ -1,5 +1,8 @@
 # CloseLinkit
 
+[![Frontend CI](https://github.com/JorgeLR0610/CloseLinkit/actions/workflows/frontend-ci.yaml/badge.svg)](https://github.com/JorgeLR0610/CloseLinkit/actions/workflows/frontend-ci.yaml)
+[![Backend CI](https://github.com/JorgeLR0610/CloseLinkit/actions/workflows/backend-ci.yaml/badge.svg)](https://github.com/JorgeLR0610/CloseLinkit/actions/workflows/backend-ci.yaml)
+
 CloseLinkit is a URL shortening service composed of a Go backend, a React frontend, and a PostgreSQL database. It exposes a REST API and a web client that allows users to create, retrieve, and resolve shortened URLs.
 
 > **Current Version:** v0.1.0
