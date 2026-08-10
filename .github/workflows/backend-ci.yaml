@@ -1,0 +1,53 @@
+name: backend-ci
+
+on:
+  push:
+    branches: ["main"]
+    paths: ["server/**"]
+    
+  pull_request:
+    branches: ["main"]
+    paths: ["server/**"]
+
+jobs:
+  tests:
+    name: Backend Tests
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: server
+        
+    steps:
+      - name: Check out code
+        uses: actions/checkout@v6
+
+      - name: Set up Go
+        uses: actions/setup-go@v6
+        with:
+          go-version-file: server/go.mod
+          cache-dependency-path: server/go.sum
+
+      - name: Run unit tests
+        run: go test ./... -cover
+
+  style:
+    name: Backend Static Analysis
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: server
+
+    steps:
+      - name: Check out code
+        uses: actions/checkout@v6
+
+      - name: Set up Go
+        uses: actions/setup-go@v6
+        with:
+          go-version-file: server/go.mod
+          cache-dependency-path: server/go.sum
+
+      - name: Run linter
+        uses: golangci/golangci-lint-action@v7
+        with:
+          working-directory: server
