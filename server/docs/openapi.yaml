@@ -118,10 +118,6 @@ components:
     GetURLStatsResponse:
       type: object
       properties:
-        original_url:
-          type: string
-          format: uri
-          example: https://example.com
         click_count:
           type: integer
           example: 42
