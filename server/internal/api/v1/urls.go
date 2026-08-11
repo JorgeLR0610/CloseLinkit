@@ -141,7 +141,6 @@ func (h *URLHandler) HandlerGetURLStats(w http.ResponseWriter, r *http.Request) 
 	}
 
 	if err := response.WriteJSON(w, http.StatusOK, GetURLStatsResponse{
-		OriginalURL: stats.OriginalUrl,
 		ClickCount:  int(stats.ClickCount),
 		CreatedAt:   stats.CreatedAt.Time,
 	}); err != nil {
