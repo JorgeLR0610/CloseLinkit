@@ -1,13 +1,13 @@
 import type { Dispatch, SetStateAction } from 'react'
 import { getURLStats } from '../../services/urls'
-import type { GetURLStatsResponse } from '../../types/url'
+import type { URLStats } from '../../types/url'
 
 interface Props {
     shortURL: string
     className?: string
     displayedStats: boolean
     setDisplayedStats: Dispatch<SetStateAction<boolean>>
-    setStats: Dispatch<SetStateAction<GetURLStatsResponse | null>>
+    setStats: Dispatch<SetStateAction<URLStats | null>>
 }
 
 export default function StatsButton({

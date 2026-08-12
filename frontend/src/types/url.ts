@@ -4,16 +4,21 @@ export type URLItem = {
 };
 
 export type ShortenURLResponse = {
-<<<<<<< HEAD
   shortURL: string;
 };
-=======
-    shortURL: string
-}
 
-export type GetURLStatsResponse = {
-    originalURL: string
-    clickCount: number
-    createdAt: Date
-}
->>>>>>> b4c95eb (feat(web): implement basic URL statistics section and refactor components for better structure)
+export type ShortenURLAPIResponse = {
+  short_url: string;
+};
+
+export type GetURLStatsAPIResponse = {
+  original_url: string;
+  click_count: number;
+  created_at: string;
+};
+
+export type URLStats = {
+  originalURL: string;
+  clickCount: number;
+  createdAt: Date;
+};

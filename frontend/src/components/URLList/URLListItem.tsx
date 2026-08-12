@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { FaCalendarDays, FaHandPointer } from 'react-icons/fa6'
 import CopyButton from '../UtilButtons/CopyButton'
 import StatsButton from '../UtilButtons/StatsButton'
-import type { GetURLStatsResponse, URLItem } from '../../types/url'
+import type { URLStats, URLItem } from '../../types/url'
 
 interface Props {
     item: URLItem
@@ -10,7 +10,7 @@ interface Props {
 
 export default function URLListItem({ item }: Props) {
     const [displayedStats, setDisplayedStats] = useState(false)
-    const [stats, setStats] = useState<GetURLStatsResponse | null>(null)
+    const [stats, setStats] = useState<URLStats | null>(null)
 
     const formattedDate = stats?.createdAt
         ? new Date(stats.createdAt).toLocaleString(undefined, {
