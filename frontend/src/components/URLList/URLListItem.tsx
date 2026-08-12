@@ -31,7 +31,13 @@ export default function URLListItem({ item }: Props) {
 
                 <div className="short-url-group">
                     <span className="short-url">
-                        {item.shortURL}
+                        <a
+                            href={item.shortURL}
+                            target='_blank'
+                            rel='noopener noreferrer'
+                        >
+                            {item.shortURL}
+                        </a>
                     </span>
 
                     <CopyButton

@@ -3,6 +3,7 @@
   max-width: 800px;
   margin-top: 20px;
 }
+
 .list-title {
   color: var(--text-secondary);
   font-size: 1rem;
@@ -11,11 +12,13 @@
   text-transform: uppercase;
   letter-spacing: 1px;
 }
+
 .url-list {
   display: flex;
   flex-direction: column;
   gap: 12px;
 }
+
 .url-item {
   display: flex;
   flex-direction: column;
@@ -23,6 +26,7 @@
   overflow: hidden;
   transition: all 0.3s ease;
 }
+
 .url-item-main {
   display: flex;
   justify-content: space-between;
@@ -30,6 +34,7 @@
   padding: 16px 24px;
   width: 100%;
 }
+
 .original-url {
   color: var(--text-primary);
   white-space: nowrap;
@@ -37,14 +42,36 @@
   text-overflow: ellipsis;
   max-width: 50%;
 }
+
 .short-url-group {
   display: flex;
   align-items: center;
   gap: 16px;
 }
+
 .short-url {
   color: #a5b4fc;
 }
+
+.short-url a {
+  color: inherit;
+  text-decoration: none;
+  transition: color 0.2s ease;
+}
+
+.short-url a:visited {
+  color: inherit;
+}
+
+.short-url a:hover {
+  color: #a3a9c8;
+  text-decoration: none;
+}
+
+.short-url a:active {
+  color: #a3a9c8;
+}
+
 .util-btns-small {
   background: rgba(255, 255, 255, 0.1);
   color: white;
@@ -53,25 +80,30 @@
   border-radius: 6px;
   font-size: 0.85rem;
 }
+
 .util-btns-small:hover {
   background: #a5b4fc;
   color: var(--text-primary);
 }
+
 .util-btns-small.active {
   background: var(--accent-color);
   color: #fff;
   border-color: var(--accent-color);
 }
+
 .url-item-stats {
   border-top: 1px solid var(--surface-border);
   background: rgba(15, 23, 42, 0.4);
   padding: 16px 24px;
 }
+
 .stats-grid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
   gap: 16px;
 }
+
 .stat-card {
   display: flex;
   align-items: center;
@@ -81,6 +113,7 @@
   padding: 12px 16px;
   border-radius: 10px;
 }
+
 .stat-icon {
   display: flex;
   align-items: center;
@@ -92,16 +125,19 @@
   color: #a5b4fc;
   font-size: 1.1rem;
 }
+
 .stat-info {
   display: flex;
   flex-direction: column;
 }
+
 .stat-label {
   font-size: 0.75rem;
   color: var(--text-secondary);
   text-transform: uppercase;
   letter-spacing: 0.5px;
 }
+
 .stat-value {
   font-size: 1rem;
   font-weight: 600;
