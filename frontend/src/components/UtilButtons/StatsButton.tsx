@@ -1,6 +1,7 @@
 import type { Dispatch, SetStateAction } from 'react'
 import { getURLStats } from '../../services/urls'
 import type { URLStats } from '../../types/url'
+import toast from 'react-hot-toast'
 
 interface Props {
     shortURL: string
@@ -23,7 +24,7 @@ export default function StatsButton({
                 const resp = await getURLStats(shortURL)
                 setStats(resp)
             } catch (error) {
-                console.error(error)
+                toast.error("Could not load stats. Please try again later.")
                 return
             }
         }
