@@ -1,4 +1,4 @@
-import './FooterCTA.css'
+import "./FooterCTA.css";
 
 export default function FooterCTA() {
   return (
@@ -12,5 +12,5 @@ export default function FooterCTA() {
         <button className="btn-primary-glow">Sign up</button>
       </div>
     </footer>
-  )
+  );
 }

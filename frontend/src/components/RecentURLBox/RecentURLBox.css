@@ -43,63 +43,63 @@
   gap: 12px;
 }
 .share-button {
-    width: 42px;
-    height: 42px;
+  width: 42px;
+  height: 42px;
 
-    display: flex;
-    align-items: center;
-    justify-content: center;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 
-    border-radius: 50%;
-    background: var(--surface-border);
+  border-radius: 50%;
+  background: var(--surface-border);
 
-    color: var(--text-secondary);
-    font-size: 1.5rem;
+  color: var(--text-secondary);
+  font-size: 1.5rem;
 
-    text-decoration: none;
+  text-decoration: none;
 
-    transition:
-        transform .2s ease,
-        color .2s ease,
-        outline-color .2s ease
+  transition:
+    transform 0.2s ease,
+    color 0.2s ease,
+    outline-color 0.2s ease;
 }
 
 .share-button:hover {
-    transform: translateY(-2px);
+  transform: translateY(-2px);
 }
 
 .share-button:active {
-    transform: translateY(0) scale(0.95);
+  transform: translateY(0) scale(0.95);
 }
 
 .share-button.whatsapp:hover,
 .share-button.whatsapp:focus-visible {
-  color: #25D366;
+  color: #25d366;
 }
 
 .share-button.whatsapp:focus-visible {
-  outline: 2px solid #25D366;
+  outline: 2px solid #25d366;
   outline-offset: 2px;
 }
 
 .share-button.facebook:hover,
 .share-button.facebook:focus-visible {
-  color: #1877F2;
+  color: #1877f2;
 }
 
 .share-button.facebook:focus-visible {
-  outline: 2px solid #1877F2;
+  outline: 2px solid #1877f2;
   outline-offset: 2px;
 }
 
 .share-button.linkedin:hover,
 .share-button.linkedin:focus-visible {
-    color: #0a66c2;
+  color: #0a66c2;
 }
 
 .share-button.linkedin:focus-visible {
-    outline: 2px solid #0a66c2;
-    outline-offset: 2px;
+  outline: 2px solid #0a66c2;
+  outline-offset: 2px;
 }
 
 .share-button.x:hover,
@@ -114,10 +114,10 @@
 
 .share-button.telegram:hover,
 .share-button.telegram:focus-visible {
-  color: #229ED9;
+  color: #229ed9;
 }
 
 .share-button.telegram:focus-visible {
-  outline: 2px solid #229ED9;
+  outline: 2px solid #229ed9;
   outline-offset: 2px;
 }

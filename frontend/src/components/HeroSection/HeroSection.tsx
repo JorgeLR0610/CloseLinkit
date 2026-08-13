@@ -1,6 +1,6 @@
-import { useState } from 'react'
-import type { SyntheticEvent } from 'react'
-import './HeroSection.css'
+import { useState } from "react";
+import type { SyntheticEvent } from "react";
+import "./HeroSection.css";
 
 interface Props {
   onShorten: (url: string) => Promise<boolean>;
@@ -8,8 +8,8 @@ interface Props {
 }
 
 export default function HeroSection({ onShorten, onClearGlobalError }: Props) {
-  const [url, setURL] = useState('')
-  const [error, setError] = useState<string | null>(null)
+  const [url, setURL] = useState("");
+  const [error, setError] = useState<string | null>(null);
 
   function isValidHttpURL(value: string): boolean {
     const trimmed = value.trim();
@@ -23,7 +23,8 @@ export default function HeroSection({ onShorten, onClearGlobalError }: Props) {
 
       return (
         (url.protocol === "https:" || url.protocol === "http:") &&
-        url.hostname.length > 0 && url.hostname.includes(".")
+        url.hostname.length > 0 &&
+        url.hostname.includes(".")
       );
     } catch {
       return false;
@@ -31,10 +32,10 @@ export default function HeroSection({ onShorten, onClearGlobalError }: Props) {
   }
 
   const handleSubmit = async (e: SyntheticEvent) => {
-    e.preventDefault()
+    e.preventDefault();
 
     if (!isValidHttpURL(url)) {
-      setError("The provided URL is invalid or malformed")
+      setError("The provided URL is invalid or malformed");
       return;
     }
 
@@ -44,34 +45,38 @@ export default function HeroSection({ onShorten, onClearGlobalError }: Props) {
     const isSuccess = await onShorten(url);
 
     if (isSuccess) {
-      setURL('')
+      setURL("");
     }
-  }
+  };
 
   return (
     <section className="hero fade-in">
       <h1 className="hero-title">URL shortening service</h1>
       <p className="hero-subtitle">Fast, secure, and incredibly easy to use.</p>
-      
+
       <form className="hero-form glass-panel" onSubmit={handleSubmit}>
-        <input 
-          type="text" 
+        <input
+          type="text"
           required
-          placeholder="Paste your link here" 
+          placeholder="Paste your link here"
           className="hero-input"
           value={url}
           onChange={(e) => {
-            setURL(e.target.value)
-            if (error) setError(null)
-              onClearGlobalError()
-        }}
+            setURL(e.target.value);
+            if (error) setError(null);
+            onClearGlobalError();
+          }}
         />
 
         <button type="submit" className="hero-btn">
           Shorten URL
         </button>
       </form>
-      {error && <p className="hero-error fade-in" role="alert">{error}</p>}
+      {error && (
+        <p className="hero-error fade-in" role="alert">
+          {error}
+        </p>
+      )}
     </section>
-  )
+  );
 }
