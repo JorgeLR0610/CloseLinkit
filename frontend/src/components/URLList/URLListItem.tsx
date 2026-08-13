@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { FaCalendarDays, FaHandPointer } from "react-icons/fa6";
 import CopyButton from "../CopyButton/CopyButton";
-import StatsButton from "../UtilButtons/StatsButton";
+import StatsButton from "../StatsButton/StatsButton";
 import type { URLStats, URLItem } from "../../types/url";
 
 interface Props {

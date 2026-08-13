@@ -1,7 +1,12 @@
-import type { GetURLStatsAPIResponse, URLStats, ShortenURLAPIResponse } from "../types/url";
+import type {
+  GetURLStatsAPIResponse,
+  URLStats,
+  ShortenURLAPIResponse,
+  ShortenURLResponse,
+} from "../types/url";
 import request from "./apiClient";
 
-export async function shortenURL(originalURL: string) {
+export async function shortenURL(originalURL: string): Promise<ShortenURLResponse> {
   const data = await request<ShortenURLAPIResponse>("/api/v1/shorten", {
     method: "POST",
     body: JSON.stringify({
