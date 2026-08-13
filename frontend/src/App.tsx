@@ -6,6 +6,7 @@ import URLList from "./components/URLList/URLList";
 import "./App.css";
 import type { URLItem } from "./types/url";
 import { shortenURL } from "./services/urls";
+import toast from "react-hot-toast";
 
 function App() {
   const [urlHistory, setURLHistory] = useState<URLItem[]>(() => {
@@ -17,7 +18,6 @@ function App() {
     }
   });
   const [recentURL, setRecentURL] = useState<string | null>(null);
-  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     localStorage.setItem("history", JSON.stringify(urlHistory));
@@ -27,7 +27,6 @@ function App() {
     if (!originalURL.trim()) return false;
 
     try {
-      setError(null);
       const data = await shortenURL(originalURL);
       setRecentURL(data.shortURL);
 
@@ -44,7 +43,7 @@ function App() {
 
       return true;
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Unexpected error");
+      toast.error(err instanceof Error ? err.message : "Unexpected error");
       return false;
     }
   };
@@ -53,21 +52,8 @@ function App() {
     <div className="app-container">
       <Header />
       <main className="main-content">
-        <HeroSection
-          onShorten={handleShortenURL}
-          onClearGlobalError={() => {
-            if (error) setError(null);
-          }}
-        />
-
-        {error && (
-          <p className="hero-error fade-in" role="alert">
-            {error}
-          </p>
-        )}
-
+        <HeroSection onShorten={handleShortenURL} />
         {recentURL && <RecentURLBox shortURL={recentURL} />}
-
         {urlHistory.length > 0 && <URLList history={urlHistory} />}
       </main>
     </div>

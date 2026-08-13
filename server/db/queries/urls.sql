@@ -9,7 +9,7 @@ FROM urls
 WHERE short_code = $1;
 
 -- name: GetURLStats :one
-SELECT original_url, click_count, created_at
+SELECT click_count, created_at
 FROM urls
 WHERE short_code = $1;
 

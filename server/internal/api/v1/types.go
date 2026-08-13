@@ -9,7 +9,6 @@ type CreateURLResponse struct {
 }
 
 type GetURLStatsResponse struct {
-	OriginalURL string    `json:"original_url"`
-	ClickCount  int       `json:"click_count"`
-	CreatedAt   time.Time `json:"created_at"`
+	ClickCount int       `json:"click_count"`
+	CreatedAt  time.Time `json:"created_at"`
 }

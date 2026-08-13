@@ -234,9 +234,8 @@ func TestURLHandler_HandlerGetURLStats(t *testing.T) {
 				return &mockURLService{
 					GetURLStatsFunc: func(ctx context.Context, shortCode string) (repository.GetURLStatsRow, error) {
 						return repository.GetURLStatsRow{
-							OriginalUrl: "https://example.com",
-							ClickCount:  10,
-							CreatedAt:   pgtype.Timestamptz{Time: time.Now(), Valid: true},
+							ClickCount: 10,
+							CreatedAt:  pgtype.Timestamptz{Time: time.Now(), Valid: true},
 						}, nil
 					},
 				}
@@ -277,7 +276,7 @@ func TestURLHandler_HandlerGetURLStats(t *testing.T) {
 				if err := json.Unmarshal(w.Body.Bytes(), &resp); err != nil {
 					t.Fatalf("could not unmarshal response: %v", err)
 				}
-				if resp.OriginalURL != "https://example.com" || resp.ClickCount != 10 {
+				if resp.ClickCount != 10 {
 					t.Errorf("expected response to have populated fields correctly, got: %+v", resp)
 				}
 			}

@@ -1,13 +1,13 @@
 import { useState } from "react";
 import type { SyntheticEvent } from "react";
 import "./HeroSection.css";
+import toast from "react-hot-toast";
 
 interface Props {
   onShorten: (url: string) => Promise<boolean>;
-  onClearGlobalError: () => void;
 }
 
-export default function HeroSection({ onShorten, onClearGlobalError }: Props) {
+export default function HeroSection({ onShorten }: Props) {
   const [url, setURL] = useState("");
   const [error, setError] = useState<string | null>(null);
 
@@ -40,12 +40,12 @@ export default function HeroSection({ onShorten, onClearGlobalError }: Props) {
     }
 
     setError(null);
-    onClearGlobalError();
 
     const isSuccess = await onShorten(url);
 
     if (isSuccess) {
       setURL("");
+      toast.success("Short URL created!");
     }
   };
 
@@ -64,7 +64,6 @@ export default function HeroSection({ onShorten, onClearGlobalError }: Props) {
           onChange={(e) => {
             setURL(e.target.value);
             if (error) setError(null);
-            onClearGlobalError();
           }}
         />
 
