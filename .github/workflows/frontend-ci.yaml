@@ -9,8 +9,8 @@ on:
     paths: ["frontend/**"]
 
 jobs:
-  style:
-    name: Frontend Style
+  tests:
+    name: Frontend Tests
     runs-on: ubuntu-latest
     defaults:
       run:
@@ -18,10 +18,10 @@ jobs:
 
     steps:
       - name: Check out code
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
 
       - name: Set up NodeJS
-        uses: actions/setup-node@v5
+        uses: actions/setup-node@v7
         with:
           node-version-file: frontend/.nvmrc
           cache: "npm"
@@ -30,5 +30,32 @@ jobs:
       - name: Run clean install
         run: npm ci
 
-      - name: Run npm linter
+      - name: Run npm test
+        run: npm test
+
+  quality:
+    name: Frontend Code Quality
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: frontend
+
+    steps:
+      - name: Check out code
+        uses: actions/checkout@v7
+
+      - name: Set up NodeJS
+        uses: actions/setup-node@v7
+        with:
+          node-version-file: frontend/.nvmrc
+          cache: "npm"
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Run clean install
+        run: npm ci
+
+      - name: Run format checker
+        run: npm run format-check
+
+      - name: Run linter
         run: npm run lint
