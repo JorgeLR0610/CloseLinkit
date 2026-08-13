@@ -1,9 +1,9 @@
-import type { URLItem } from '../../types/url'
-import './URLList.css'
-import URLListItem from './URLListItem'
+import type { URLItem } from "../../types/url";
+import "./URLList.css";
+import URLListItem from "./URLListItem";
 
 interface Props {
-  history: URLItem[]
+  history: URLItem[];
 }
 
 export default function URLList({ history }: Props) {
@@ -12,12 +12,9 @@ export default function URLList({ history }: Props) {
       <h3 className="list-title">List of shortened URLs</h3>
       <div className="url-list">
         {history.map((item) => (
-          <URLListItem
-            key={item.shortURL}
-            item={item}
-          />
+          <URLListItem key={item.shortURL} item={item} />
         ))}
       </div>
     </div>
-  )
+  );
 }

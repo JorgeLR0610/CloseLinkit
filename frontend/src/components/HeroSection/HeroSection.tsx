@@ -1,15 +1,15 @@
-import { useState } from 'react'
-import type { SyntheticEvent } from 'react'
-import './HeroSection.css'
-import toast from 'react-hot-toast';
+import { useState } from "react";
+import type { SyntheticEvent } from "react";
+import "./HeroSection.css";
+import toast from "react-hot-toast";
 
 interface Props {
   onShorten: (url: string) => Promise<boolean>;
 }
 
 export default function HeroSection({ onShorten }: Props) {
-  const [url, setURL] = useState('')
-  const [error, setError] = useState<string | null>(null)
+  const [url, setURL] = useState("");
+  const [error, setError] = useState<string | null>(null);
 
   function isValidHttpURL(value: string): boolean {
     const trimmed = value.trim();
@@ -23,7 +23,8 @@ export default function HeroSection({ onShorten }: Props) {
 
       return (
         (url.protocol === "https:" || url.protocol === "http:") &&
-        url.hostname.length > 0 && url.hostname.includes(".")
+        url.hostname.length > 0 &&
+        url.hostname.includes(".")
       );
     } catch {
       return false;
@@ -31,10 +32,10 @@ export default function HeroSection({ onShorten }: Props) {
   }
 
   const handleSubmit = async (e: SyntheticEvent) => {
-    e.preventDefault()
+    e.preventDefault();
 
     if (!isValidHttpURL(url)) {
-      setError("The provided URL is invalid or malformed")
+      setError("The provided URL is invalid or malformed");
       return;
     }
 
@@ -43,10 +44,10 @@ export default function HeroSection({ onShorten }: Props) {
     const isSuccess = await onShorten(url);
 
     if (isSuccess) {
-      setURL('')
-      toast.success("Short URL created!")
+      setURL("");
+      toast.success("Short URL created!");
     }
-  }
+  };
 
   return (
     <section className="hero fade-in">
@@ -61,8 +62,8 @@ export default function HeroSection({ onShorten }: Props) {
           className="hero-input"
           value={url}
           onChange={(e) => {
-            setURL(e.target.value)
-            if (error) setError(null)
+            setURL(e.target.value);
+            if (error) setError(null);
           }}
         />
 
@@ -70,7 +71,11 @@ export default function HeroSection({ onShorten }: Props) {
           Shorten URL
         </button>
       </form>
-      {error && <p className="hero-error fade-in" role="alert">{error}</p>}
+      {error && (
+        <p className="hero-error fade-in" role="alert">
+          {error}
+        </p>
+      )}
     </section>
-  )
+  );
 }

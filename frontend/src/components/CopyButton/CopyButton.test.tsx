@@ -1,6 +1,6 @@
 import { render, screen, fireEvent, act } from "@testing-library/react";
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import CopyButton from "./CopyButton";
+import CopyButton from "../CopyButton/CopyButton";
 
 describe("CopyButton Component", () => {
   const textToCopy = "http://localhost:8080/xyz1234";
