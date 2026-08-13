@@ -1,4 +1,4 @@
-const baseURL = import.meta.env.VITE_API_BASE_URL;
+const baseURL = import.meta.env.VITE_API_BASE_URL ?? "";
 
 async function request<T>(endpoint: string, options: RequestInit = {}): Promise<T> {
   try {

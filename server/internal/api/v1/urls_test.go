@@ -234,8 +234,8 @@ func TestURLHandler_HandlerGetURLStats(t *testing.T) {
 				return &mockURLService{
 					GetURLStatsFunc: func(ctx context.Context, shortCode string) (repository.GetURLStatsRow, error) {
 						return repository.GetURLStatsRow{
-							ClickCount:  10,
-							CreatedAt:   pgtype.Timestamptz{Time: time.Now(), Valid: true},
+							ClickCount: 10,
+							CreatedAt:  pgtype.Timestamptz{Time: time.Now(), Valid: true},
 						}, nil
 					},
 				}
