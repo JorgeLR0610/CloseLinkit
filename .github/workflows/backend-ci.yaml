@@ -1,11 +1,6 @@
 name: backend-ci
 
 on:
-  push:
-    branches: ["main"]
-    paths:
-      - "server/**"
-
   pull_request:
     branches: ["main"]
 
@@ -13,13 +8,12 @@ jobs:
   changes:
     name: Backend Changes
     runs-on: ubuntu-latest
+    permissions:
+      pull-requests: read
     outputs:
       backend: ${{ steps.filter.outputs.backend }}
 
     steps:
-      - name: Check out code
-        uses: actions/checkout@v7
-
       - name: Detect changes
         id: filter
         uses: dorny/paths-filter@v4
@@ -50,7 +44,7 @@ jobs:
       - name: Run unit tests
         run: go test ./... -cover
 
-  style:
+  static-analysis:
     name: Backend Static Analysis
     needs: changes
     if: needs.changes.outputs.backend == 'true'
