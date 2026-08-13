@@ -1,6 +1,6 @@
-import CopyButton from '../CopyButton/CopyButton'
-import type { URLItem } from '../../types/url'
-import './URLList.css'
+import CopyButton from "../CopyButton/CopyButton";
+import type { URLItem } from "../../types/url";
+import "./URLList.css";
 
 export default function URLList({ history }: { history: URLItem[] }) {
   return (
@@ -9,14 +9,16 @@ export default function URLList({ history }: { history: URLItem[] }) {
       <div className="url-list">
         {history.map((item) => (
           <div key={item.shortURL} className="url-item glass-panel">
-            <span className="original-url" title={item.originalURL}>{item.originalURL}</span>
+            <span className="original-url" title={item.originalURL}>
+              {item.originalURL}
+            </span>
             <div className="short-url-group">
               <span className="short-url">{item.shortURL}</span>
-              <CopyButton textToCopy={item.shortURL} className='copy-btn-small'/>
+              <CopyButton textToCopy={item.shortURL} className="copy-btn-small" />
             </div>
           </div>
         ))}
       </div>
     </div>
-  )
+  );
 }
