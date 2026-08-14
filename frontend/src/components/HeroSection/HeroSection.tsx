@@ -2,6 +2,7 @@ import { useState } from "react";
 import type { SyntheticEvent } from "react";
 import "./HeroSection.css";
 import toast from "react-hot-toast";
+import * as ipaddr from "ipaddr.js";
 
 interface Props {
   onShorten: (url: string) => Promise<boolean>;
@@ -11,20 +12,37 @@ export default function HeroSection({ onShorten }: Props) {
   const [url, setURL] = useState("");
   const [error, setError] = useState<string | null>(null);
 
-  function isValidHttpURL(value: string): boolean {
-    const trimmed = value.trim();
-
-    if (!trimmed.startsWith("https://") && !trimmed.startsWith("http://")) {
+  function isValidHost(hostname: string): boolean {
+    if (
+      hostname === "localhost" ||
+      hostname === "" ||
+      !hostname.includes(".") ||
+      hostname.endsWith(".")
+    ) {
       return false;
     }
 
     try {
-      const url = new URL(trimmed);
+      const ip = ipaddr.parse(hostname);
+      if (ip.range() === "loopback" || ip.range() === "linkLocal" || ip.range() === "private") {
+        return false;
+      }
+    } catch {
+      return true;
+    }
+
+    return true;
+  }
+
+  function isValidURL(url: string): boolean {
+    const trimmedURL = url.trim();
+
+    try {
+      const parsedURL = new URL(trimmedURL);
 
       return (
-        (url.protocol === "https:" || url.protocol === "http:") &&
-        url.hostname.length > 0 &&
-        url.hostname.includes(".")
+        (parsedURL.protocol === "https:" || parsedURL.protocol === "http:") &&
+        isValidHost(parsedURL.hostname)
       );
     } catch {
       return false;
@@ -34,7 +52,7 @@ export default function HeroSection({ onShorten }: Props) {
   const handleSubmit = async (e: SyntheticEvent) => {
     e.preventDefault();
 
-    if (!isValidHttpURL(url)) {
+    if (!isValidURL(url)) {
       setError("The provided URL is invalid or malformed");
       return;
     }

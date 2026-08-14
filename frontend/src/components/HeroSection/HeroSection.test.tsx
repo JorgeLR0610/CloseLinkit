@@ -42,27 +42,32 @@ describe("HeroSection Component", () => {
     },
   );
 
-  it.each(["hello", "example.com", "ftp://example.com", "https://", "http://"])(
-    'rejects invalid URL "%s", displays alert, and clears alert upon typing',
-    (invalidUrl) => {
-      render(<HeroSection onShorten={onShortenMock} />);
-      const input = screen.getByPlaceholderText(/paste your link here/i);
-      const submitButton = screen.getByRole("button", { name: /shorten url/i });
+  it.each([
+    "hello",
+    "example.com",
+    "ftp://example.com",
+    "https://",
+    "http://",
+    "https://example.",
+    "http://localhost",
+  ])('rejects invalid URL "%s", displays alert, and clears alert upon typing', (invalidUrl) => {
+    render(<HeroSection onShorten={onShortenMock} />);
+    const input = screen.getByPlaceholderText(/paste your link here/i);
+    const submitButton = screen.getByRole("button", { name: /shorten url/i });
 
-      fireEvent.change(input, { target: { value: invalidUrl } });
-      fireEvent.click(submitButton);
+    fireEvent.change(input, { target: { value: invalidUrl } });
+    fireEvent.click(submitButton);
 
-      expect(onShortenMock).not.toHaveBeenCalled();
+    expect(onShortenMock).not.toHaveBeenCalled();
 
-      const alert = screen.getByRole("alert");
-      expect(alert).toBeInTheDocument();
-      expect(alert).toHaveTextContent(/the provided url is invalid or malformed/i);
+    const alert = screen.getByRole("alert");
+    expect(alert).toBeInTheDocument();
+    expect(alert).toHaveTextContent(/the provided url is invalid or malformed/i);
 
-      // Typing into input clears the error
-      fireEvent.change(input, { target: { value: invalidUrl + "a" } });
-      expect(screen.queryByRole("alert")).not.toBeInTheDocument();
-    },
-  );
+    // Typing into input clears the error
+    fireEvent.change(input, { target: { value: invalidUrl + "a" } });
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+  });
 
   it("keeps input value when API onShorten returns false", async () => {
     onShortenMock.mockResolvedValue(false);
