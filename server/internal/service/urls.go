@@ -48,7 +48,7 @@ func NewURLService(repo URLRepository, generator ShortCodeGenerator) *URLService
 }
 
 func isValidHost(hostname string) bool {
-	if hostname == "localhost" || hostname == "" {
+	if hostname == "localhost" || hostname == "" || !strings.Contains(hostname, ".") || strings.HasSuffix(hostname, ".") {
 		return false
 	}
 
