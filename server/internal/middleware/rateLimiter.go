@@ -1,11 +1,13 @@
 package middleware
 
 import (
+	"log/slog"
 	"net"
 	"net/http"
 	"sync"
 	"time"
 
+	"github.com/JorgeLR0610/CloseLinkit/internal/response"
 	"golang.org/x/time/rate"
 )
 
@@ -61,7 +63,7 @@ func (rl *IPRateLimiter) CleanInactiveIPs() {
 	}
 }
 
-func RateLimiting(rl *IPRateLimiter) func(http.Handler) http.Handler {
+func RateLimiting(rl *IPRateLimiter, logger *slog.Logger) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			ip, _, err := net.SplitHostPort(r.RemoteAddr)
@@ -71,7 +73,12 @@ func RateLimiting(rl *IPRateLimiter) func(http.Handler) http.Handler {
 
 			limiter := rl.getVisitor(ip)
 			if !limiter.Allow() {
-				http.Error(w, "Too Many Requests", http.StatusTooManyRequests)
+				if err := response.WriteError(w, http.StatusTooManyRequests, "Too Many Requests"); err != nil {
+					logger.Error(
+						"could not write error response",
+						slog.Any("error", err),
+					)
+				}
 				return
 			}
 			next.ServeHTTP(w, r)

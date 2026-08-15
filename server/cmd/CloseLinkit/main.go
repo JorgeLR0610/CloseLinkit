@@ -92,7 +92,7 @@ func main() {
 	mux.Handle(
 		"POST /api/v1/shorten",
 		middleware.RequestLogging(logger)(
-			middleware.RateLimiting(shortenRateLimiter)(
+			middleware.RateLimiting(shortenRateLimiter, logger)(
 				http.HandlerFunc(urlsHandler.HandlerCreateURL),
 			),
 		),
@@ -101,7 +101,7 @@ func main() {
 	mux.Handle(
 		"GET /api/v1/{shortCode}/stats",
 		middleware.RequestLogging(logger)(
-			middleware.RateLimiting(statsRateLimiter)(
+			middleware.RateLimiting(statsRateLimiter, logger)(
 				http.HandlerFunc(urlsHandler.HandlerGetURLStats),
 			),
 		),
