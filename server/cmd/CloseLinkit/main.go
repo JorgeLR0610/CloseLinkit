@@ -37,6 +37,10 @@ func main() {
 	}
 	allowedOrigins = strings.Split(corsOriginRaw, ",")
 
+	// shortenRateLimiter middleware
+	shortenRateLimiter := middleware.NewIPRateLimiter(1, 5, 15*time.Minute, 10*time.Minute)
+	statsRateLimiter := middleware.NewIPRateLimiter(5, 10, 5*time.Minute, 2*time.Minute)
+
 	ctx := context.Background()
 
 	// Create pool connection
@@ -78,27 +82,60 @@ func main() {
 	// Handlers
 	urlsHandler := api.NewURLHandler(urlsSvc, logger, os.Getenv("BASE_URL"))
 
+	// Background goroutines to clean up inactive IPs
+	go shortenRateLimiter.CleanInactiveIPs()
+	go statsRateLimiter.CleanInactiveIPs()
+
 	mux := http.NewServeMux()
 
 	// Endpoints
-	mux.Handle("POST /api/v1/shorten", middleware.RequestLogging(logger)(http.HandlerFunc(urlsHandler.HandlerCreateURL)))
-	mux.Handle("GET /api/v1/{shortCode}/stats", middleware.RequestLogging(logger)(http.HandlerFunc(urlsHandler.HandlerGetURLStats)))
+	mux.Handle(
+		"POST /api/v1/shorten",
+		middleware.RequestLogging(logger)(
+			middleware.RateLimiting(shortenRateLimiter)(
+				http.HandlerFunc(urlsHandler.HandlerCreateURL),
+			),
+		),
+	)
 
-	mux.Handle("GET /{shortCode}", middleware.RequestLogging(logger)(http.HandlerFunc(urlsHandler.HandlerResolveShortURL)))
+	mux.Handle(
+		"GET /api/v1/{shortCode}/stats",
+		middleware.RequestLogging(logger)(
+			middleware.RateLimiting(statsRateLimiter)(
+				http.HandlerFunc(urlsHandler.HandlerGetURLStats),
+			),
+		),
+	)
+
+	mux.Handle(
+		"GET /{shortCode}",
+		middleware.RequestLogging(logger)(
+			http.HandlerFunc(urlsHandler.HandlerResolveShortURL),
+		),
+	)
 
 	// Swagger UI
-	mux.Handle("GET /openapi.yaml", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Content-Type", "application/yaml")
-		if _, err = w.Write(docs.OpenAPISpec); err != nil {
-			logger.Error("could not write openapi spec", slog.Any("error", err))
-		}
-	}))
+	mux.Handle(
+		"GET /openapi.yaml",
+		http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			w.Header().Set("Content-Type", "application/yaml")
+			if _, err = w.Write(docs.OpenAPISpec); err != nil {
+				logger.Error(
+					"could not write openapi spec",
+					slog.Any("error", err),
+				)
+			}
+		}),
+	)
 
-	mux.Handle("/docs/", v5emb.New(
-		"CloseLinkit API",
-		"/openapi.yaml",
+	mux.Handle(
 		"/docs/",
-	))
+		v5emb.New(
+			"CloseLinkit API",
+			"/openapi.yaml",
+			"/docs/",
+		),
+	)
 
 	srv := &http.Server{
 		Addr:              ":8080",
