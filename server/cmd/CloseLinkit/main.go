@@ -138,8 +138,12 @@ func main() {
 	)
 
 	srv := &http.Server{
-		Addr:              ":8080",
-		Handler:           middleware.CORSMiddleware(allowedOrigins)(mux),
+		Addr: ":8080",
+		Handler: middleware.CORSMiddleware(allowedOrigins)(
+			middleware.Recover(logger)(
+				middleware.RequestID(mux),
+			),
+		),
 		ReadHeaderTimeout: 5 * time.Second,
 		ReadTimeout:       10 * time.Second,
 		WriteTimeout:      10 * time.Second,

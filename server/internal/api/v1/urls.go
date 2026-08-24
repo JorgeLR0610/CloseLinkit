@@ -14,7 +14,7 @@ import (
 	"github.com/JorgeLR0610/CloseLinkit/web"
 )
 
-const internalErrorMsg = "There was an error on our end. Please try again later"
+const InternalErrorMsg = "There was an error on our end. Please try again later"
 
 type URLServicer interface {
 	CreateShortCode(ctx context.Context, originalURL string) (string, error)
@@ -66,7 +66,7 @@ func (h *URLHandler) HandlerCreateURL(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 
-		h.writeErrorLogged(w, http.StatusInternalServerError, internalErrorMsg)
+		h.writeErrorLogged(w, http.StatusInternalServerError, InternalErrorMsg)
 		h.logger.Error(
 			"could not create URL",
 			slog.String("method", r.Method),
@@ -106,7 +106,7 @@ func (h *URLHandler) HandlerResolveShortURL(w http.ResponseWriter, r *http.Reque
 			return
 		}
 
-		h.writeErrorLogged(w, http.StatusInternalServerError, internalErrorMsg)
+		h.writeErrorLogged(w, http.StatusInternalServerError, InternalErrorMsg)
 		h.logger.Error(
 			"could not retrieve URL",
 			slog.String("method", r.Method),
@@ -130,7 +130,7 @@ func (h *URLHandler) HandlerGetURLStats(w http.ResponseWriter, r *http.Request) 
 			return
 		}
 
-		h.writeErrorLogged(w, http.StatusInternalServerError, internalErrorMsg)
+		h.writeErrorLogged(w, http.StatusInternalServerError, InternalErrorMsg)
 		h.logger.Error(
 			"could not retrieve URL",
 			slog.String("method", r.Method),

@@ -49,7 +49,7 @@ func TestRequestLogging(t *testing.T) {
 			middlewareFunc := middleware.RequestLogging(logger)
 			handler := middlewareFunc(tt.handlerFunc)
 
-			req := httptest.NewRequest(http.MethodGet, "/test", nil)
+			req := httptest.NewRequest(http.MethodGet, "/", nil)
 			w := httptest.NewRecorder()
 
 			handler.ServeHTTP(w, req)

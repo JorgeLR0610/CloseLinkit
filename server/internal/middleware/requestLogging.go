@@ -23,18 +23,19 @@ func RequestLogging(logger *slog.Logger) func(http.Handler) http.Handler {
 				ResponseWriter: w,
 				statusCode:     http.StatusOK,
 			}
+			reqID, _ := r.Context().Value(RequestIDKey).(string)
 
 			start := time.Now()
 
 			next.ServeHTTP(rw, r)
-			logger.Info("requst completed",
+			logger.Info("request completed",
+				slog.String("request_id", reqID),
 				slog.String("method", r.Method),
 				slog.String("path", r.URL.Path),
 				slog.Int("status", rw.statusCode),
 				slog.Duration("duration", time.Since(start)),
 				slog.String("remote_addr", r.RemoteAddr),
 				slog.String("user_agent", r.UserAgent()),
-				// slog.String("request_id", id)
 			)
 		})
 	}
