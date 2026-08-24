@@ -44,7 +44,7 @@ func TestRecovery(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			var logBuffer bytes.Buffer
 			logger := slog.New(slog.NewJSONHandler(&logBuffer, nil))
-			
+
 			middlewareFunc := middleware.Recover(logger)
 			handler := middlewareFunc(tt.handlerFunc)
 

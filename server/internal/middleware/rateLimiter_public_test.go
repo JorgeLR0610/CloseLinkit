@@ -46,7 +46,7 @@ func TestRateLimiting(t *testing.T) {
 	for _, tt := range tests {
 		var logBuffer bytes.Buffer
 		logger := slog.New(slog.NewJSONHandler(&logBuffer, nil))
-		
+
 		t.Run(tt.name, func(t *testing.T) {
 			rl := middleware.NewIPRateLimiter(tt.rate, tt.burst, time.Minute, time.Minute)
 			handler := middleware.RateLimiting(rl, logger)(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
