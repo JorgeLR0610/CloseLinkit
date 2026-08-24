@@ -3,6 +3,7 @@ package middleware_test
 import (
 	"bytes"
 	"encoding/json"
+	"errors"
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
@@ -19,6 +20,7 @@ func TestRecovery(t *testing.T) {
 		expectedStatus int
 		expectedBody   string
 		expectedError  string
+		expectLogged   bool
 	}{
 		{
 			name: "No panic",
@@ -29,14 +31,25 @@ func TestRecovery(t *testing.T) {
 			},
 			expectedStatus: http.StatusOK,
 			expectedBody:   "implicit ok body",
+			expectLogged:   false,
 		},
 		{
-			name: "Panic",
+			name: "Panic with string",
 			handlerFunc: func(w http.ResponseWriter, r *http.Request) {
 				panic("There was a panic")
 			},
 			expectedStatus: http.StatusInternalServerError,
 			expectedError:  api.InternalErrorMsg,
+			expectLogged:   true,
+		},
+		{
+			name: "Panic with error value",
+			handlerFunc: func(w http.ResponseWriter, r *http.Request) {
+				panic(errors.New("boom"))
+			},
+			expectedStatus: http.StatusInternalServerError,
+			expectedError:  api.InternalErrorMsg,
+			expectLogged:   true,
 		},
 	}
 
@@ -58,6 +71,10 @@ func TestRecovery(t *testing.T) {
 			}
 
 			if tt.expectedError != "" {
+				if ct := w.Header().Get("Content-Type"); ct != "application/json" {
+					t.Errorf("expected Content-Type application/json, got %q", ct)
+				}
+
 				var response struct {
 					Error string `json:"error"`
 				}
@@ -71,6 +88,22 @@ func TestRecovery(t *testing.T) {
 				}
 			} else if w.Body.String() != tt.expectedBody {
 				t.Errorf("expected response body %q, got %q", tt.expectedBody, w.Body.String())
+			}
+
+			logged := logBuffer.Len() > 0
+			if logged != tt.expectLogged {
+				t.Errorf("expected logged=%v, got logged=%v (log output: %s)", tt.expectLogged, logged, logBuffer.String())
+			}
+
+			if tt.expectLogged {
+				var logEntry map[string]any
+				if err := json.Unmarshal(logBuffer.Bytes(), &logEntry); err != nil {
+					t.Fatalf("could not parse log output as JSON: %v", err)
+				}
+
+				if _, ok := logEntry["error"]; !ok {
+					t.Error("expected log entry to contain an 'error' field")
+				}
 			}
 		})
 	}
