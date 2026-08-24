@@ -16,7 +16,7 @@ func RequestID(next http.Handler) http.Handler {
 
 		reqID := r.Header.Get("X-Request-ID")
 
-		if reqID == "" {
+		if _, err := uuid.Parse(reqID); err != nil {
 			reqID = uuid.NewString()
 		}
 
