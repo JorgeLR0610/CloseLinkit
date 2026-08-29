@@ -1,7 +1,7 @@
 include .env
 export
 
-.PHONY: migrate-up migrate-down migrate-status sqlc-generate
+.PHONY: migrate-up migrate-down migrate-status sqlc-generate govulncheck
 
 migrate-up:
 	cd server && go tool goose -dir db/migrations postgres "$(DB_URL_GOOSE)" up
@@ -14,3 +14,6 @@ migrate-status:
 
 sqlc-generate:
 	cd server && go generate ./...
+
+govulncheck:
+	cd server && go tool govulncheck ./...
