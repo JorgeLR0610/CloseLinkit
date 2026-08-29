@@ -1,8 +1,8 @@
-FROM golang:1.26 AS builder
+FROM golang:1.26.7 AS builder
 
 ENV CGO_ENABLED=0 \
-    GOOS=linux \
-    GOARCH=amd64
+  GOOS=linux \
+  GOARCH=amd64
 
 WORKDIR /build
 
@@ -14,7 +14,7 @@ COPY . .
 
 RUN go build -o server ./cmd/CloseLinkit
 
-FROM alpine:3.23.5
+FROM alpine:3.24.1
 
 RUN adduser -D appuser
 
