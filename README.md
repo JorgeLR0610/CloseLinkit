@@ -5,7 +5,7 @@
 
 CloseLinkit is a URL shortening service composed of a Go backend, a React frontend, and a PostgreSQL database. It exposes a REST API and a web client that allows users to create, retrieve, and resolve shortened URLs.
 
-> **Current Version:** v0.1.0
+> **Current Version:** v0.2.0
 
 ![CloseLinkit Screenshot](docs/screenshot.png)
 
@@ -13,7 +13,7 @@ CloseLinkit is a URL shortening service composed of a Go backend, a React fronte
 
 - **URL Shortening:** Easily shorten long URLs.
 - **Redirection:** Fast and reliable redirection from short codes to original URLs.
-- **Statistics:** Track basic usage stats, like click counts.
+- **Statistics & Analytics:** Track basic usage stats, like click counts and creation timestamps.
 - **Interactive Swagger UI**: Interactive API documentation embedded directly at `/docs/`.
 - **Containerized Environment**: Full containerization via Docker Compose for easy development and deployment.
   
@@ -26,6 +26,9 @@ CloseLinkit is a URL shortening service composed of a Go backend, a React fronte
 | **Database** | PostgreSQL | 18.4 |
 | **SQL Code Generator** | `sqlc` | v1.31.1 |
 | **Database Migrations** | `goose` | v3.27.3 |
+| **Security & Vulnerabilities** | `govulncheck` | Standard Go Tooling |
+| **Testing Frameworks** | Vitest, React Testing Library, MSW | v4 / v16 / v2 |
+| **Linters & Formatters** | `oxlint`, `oxfmt` | v1 / v0.63 |
 | **Orchestration** | Docker & Docker Compose | Compose Specification |
 
 ## Architecture & Data Flow
@@ -172,26 +175,49 @@ The Go backend exposes a clean REST API. Full request/response schemas and inter
 | `GET` | `/docs/` | Serves embedded Swagger UI documentation |
 | `GET` | `/openapi.yaml` | Serves the OpenAPI 3.0 specification file |
 
-## Running Tests
+## Running Tests & Quality Checks
 
-Unit tests are included for backend services, generators, middleware, and handlers.
+CloseLinkit includes full test coverage and automated code quality checks for both backend and frontend.
 
-### Backend Tests
+### Backend Tests & Security Checks
 
-To run all Go backend tests:
+To run Go backend tests and vulnerability analysis:
 
 ```bash
+# Run unit tests
 cd server
 go test ./... -v
+
+# Run unit tests with race detection and coverage
+go test ./... -cover -race
+
+# Run vulnerability scan (via Makefile from project root)
+make govulncheck
 ```
 
-### Frontend Checks
+### Frontend Tests & Code Quality
 
-To run linting and TypeScript compilation checks on the frontend:
+To run frontend tests, linting, and formatting checks:
 
 ```bash
 cd frontend
+
+# Run unit and integration tests (Vitest + MSW)
+npm test
+
+# Run tests in watch mode
+npm run test:watch
+
+# Run linter (oxlint)
 npm run lint
+
+# Check code formatting (oxfmt)
+npm run format-check
+
+# Auto-format code
+npm run format
+
+# Run TypeScript check and production build
 npm run build
 ```
 
@@ -206,7 +232,7 @@ Full architectural decisions and system design documentation can be found in the
 
 Based on our planned evolution in [`docs/architecture.md`](/docs/architecture.md):
 
-- [ ] **Analytics Dashboard**: Visual charts for click rates, referrers, and locations.
+- [x] **Analytics Dashboard**: Analytics panel displaying total click counts and creation timestamp.
 - [ ] **Custom Short URLs**: Allow users to specify custom aliases for shortened links.
 - [ ] **User Authentication**: JWT-based authentication for user sessions.
 - [ ] **User Accounts & Link Management**: Manage, update, and delete created links.
