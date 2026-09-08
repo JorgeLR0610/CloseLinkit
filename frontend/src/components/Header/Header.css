@@ -4,18 +4,57 @@
   align-items: center;
   padding: 24px 0;
 }
+
 .logo-container {
   display: flex;
   align-items: center;
   gap: 12px;
   color: var(--text-primary);
 }
+
 .logo-text {
   font-weight: 700;
   font-size: 1.25rem;
   letter-spacing: -0.5px;
 }
+
 .header-logo {
   width: 40px;
   height: 40px;
+}
+
+.header-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.btn {
+  border: none;
+  padding: 0.75rem 2rem;
+  border-radius: 99px;
+  font-weight: 600;
+  font-size: 1rem;
+  cursor: pointer;
+  transition: background-color 0.2s ease;
+}
+
+.login-btn {
+  border: 1px solid var(--accent-hover);
+  background: white;
+  color: var(--accent-color);
+}
+
+.login-btn:hover {
+  background: var(--accent-hover);
+  color: white;
+}
+
+.signup-btn {
+  background: var(--accent-color);
+  color: #ffffff;
+}
+
+.signup-btn:hover {
+  background: var(--accent-hover);
 }
