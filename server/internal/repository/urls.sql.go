@@ -12,18 +12,19 @@ import (
 )
 
 const createURL = `-- name: CreateURL :one
-INSERT INTO urls (original_url, short_code)
-VALUES ($1, $2)
+INSERT INTO urls (original_url, short_code, user_id)
+VALUES ($1, $2, $3)
 RETURNING short_code
 `
 
 type CreateURLParams struct {
 	OriginalUrl string
 	ShortCode   string
+	UserID      pgtype.UUID
 }
 
 func (q *Queries) CreateURL(ctx context.Context, arg CreateURLParams) (string, error) {
-	row := q.db.QueryRow(ctx, createURL, arg.OriginalUrl, arg.ShortCode)
+	row := q.db.QueryRow(ctx, createURL, arg.OriginalUrl, arg.ShortCode, arg.UserID)
 	var short_code string
 	err := row.Scan(&short_code)
 	return short_code, err
@@ -58,6 +59,40 @@ func (q *Queries) GetURLStats(ctx context.Context, shortCode string) (GetURLStat
 	var i GetURLStatsRow
 	err := row.Scan(&i.ClickCount, &i.CreatedAt)
 	return i, err
+}
+
+const getURLsByUserID = `-- name: GetURLsByUserID :many
+SELECT id, original_url, short_code, created_at, click_count, user_id
+FROM urls
+WHERE user_id = $1
+ORDER BY created_at DESC
+`
+
+func (q *Queries) GetURLsByUserID(ctx context.Context, userID pgtype.UUID) ([]Url, error) {
+	rows, err := q.db.Query(ctx, getURLsByUserID, userID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []Url
+	for rows.Next() {
+		var i Url
+		if err := rows.Scan(
+			&i.ID,
+			&i.OriginalUrl,
+			&i.ShortCode,
+			&i.CreatedAt,
+			&i.ClickCount,
+			&i.UserID,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
 }
 
 const incrementClickCount = `-- name: IncrementClickCount :exec
