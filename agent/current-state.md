@@ -39,54 +39,32 @@
      - `id UUID PRIMARY KEY`
      - `user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE`
      - `token_hash TEXT NOT NULL UNIQUE`
-     - `created_at TIMESTAMPTZ NOT NULL`
-     - `expires_at TIMESTAMPTZ NOT NULL`
-     - `revoked_at TIMESTAMPTZ`
-     - Index on `user_id` (`idx_refresh_tokens_user_id`)
-   - `server/db/migrations/004_add_user_id_to_urls.sql`:
-     - Added nullable `user_id UUID` column to `urls` table.
-     - Foreign key constraint `user_fk` referencing `users(id)` with `ON DELETE SET NULL`.
-     - Index on `urls.user_id` (`idx_urls_user_id`).
+      - `created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()`
+      - `expires_at TIMESTAMPTZ NOT NULL`
+      - `revoked_at TIMESTAMPTZ`
+      - Index on `user_id` (`idx_refresh_tokens_user_id`)
+    - `server/db/migrations/004_add_user_id_to_urls.sql`:
+      - Added nullable `user_id UUID` column to `urls` table.
+      - Foreign key constraint `user_fk` referencing `users(id)` with `ON DELETE SET NULL`.
+      - Index on `urls.user_id` (`idx_urls_user_id`).
 
 3. **Environment Configuration:**
    - Added `JWT_SECRET` to `.env` (used for signing and validating JWT access tokens).
    - *(Note: Ensure `.env.example` includes a placeholder `JWT_SECRET=` if syncing configuration templates).*
 
+4. **SQL Queries & SQLC Repository Layer (Step 1 & Step 2 Completed):**
+   - Created `server/db/queries/users.sql` (`CreateUser`, `GetUserByEmail`, `GetUserByID`, `UpdateUserPassword`, `MarkEmailVerified`).
+   - Created `server/db/queries/refresh_tokens.sql` (`CreateRefreshToken`, `GetRefreshTokenByHash`, `RevokeRefreshToken`, `RevokeRefreshTokenByID`, `RevokeAllUserRefreshTokens`, `DeleteExpiredTokens`).
+   - Updated `server/db/queries/urls.sql` (`CreateURL` accepts optional `user_id`, added `GetURLsByUserID`).
+   - Regenerated repository code via `make sqlc-generate` in `server/internal/repository/` (`models.go`, `urls.sql.go`, `users.sql.go`, `refresh_tokens.sql.go`).
+
 ---
 
 ## Active Task & Next Steps
 
-The overarching objective is to implement **JWT-based User Authentication** starting from the server side.
+The overarching objective is to implement **JWT-based User Authentication** starting from the server side (transition towards `v0.3.0`).
 
-### Immediate Step 1: SQL Queries for SQLC
-Define the necessary queries in `server/db/queries/`:
-
-- **Create `server/db/queries/users.sql`:**
-  - `CreateUser`: Insert a new user returning the created record.
-  - `GetUserByEmail`: Query user by lowercase email.
-  - `GetUserByID`: Query user by UUID.
-  - `UpdateUserPassword`: Update `hashed_password` and `updated_at`.
-  - `MarkEmailVerified`: Set `email_verified_at` and `updated_at`.
-- **Create `server/db/queries/refresh_tokens.sql`:**
-  - `CreateRefreshToken`: Insert a refresh token entry.
-  - `GetRefreshTokenByHash`: Retrieve active/non-revoked token by hash.
-  - `RevokeRefreshToken`: Set `revoked_at = NOW()` by token hash or ID.
-  - `RevokeAllUserRefreshTokens`: Revoke all active tokens for a `user_id`.
-  - `DeleteExpiredTokens`: Periodic cleanup of expired/revoked tokens.
-- **Update `server/db/queries/urls.sql`:**
-  - Update `CreateURL` to accept optional `user_id` (`sql.Null[uuid.UUID]` or nullable UUID).
-  - Add `GetURLsByUserID`: List shortened URLs owned by a specific authenticated user.
-
-### Immediate Step 2: SQLC Code Generation
-Run the code generator to update the Go repository layer:
-```bash
-make sqlc-generate
-# or
-cd server && go generate ./...
-```
-Verify the generated files in `server/internal/repository/`.
-
-### Subsequent Step 3: Service Layer Implementation
+### Immediate Step 3: Service Layer Implementation
 - Add password hashing utilities (using `golang.org/x/crypto/argon2`).
 - Implement JWT token generation, claims handling, and validation in `server/internal/service/` (e.g. `auth.go`).
 - Implement refresh token issuance, rotation, and revocation logic.
