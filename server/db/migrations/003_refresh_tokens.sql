@@ -3,7 +3,7 @@ CREATE TABLE refresh_tokens(
     id UUID PRIMARY KEY,
     user_id UUID NOT NULL,
     token_hash TEXT NOT NULL UNIQUE,
-    created_at TIMESTAMPTZ NOT NULL,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     expires_at TIMESTAMPTZ NOT NULL,
     revoked_at TIMESTAMPTZ,
 
