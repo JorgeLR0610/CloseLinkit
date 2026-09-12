@@ -1,6 +1,6 @@
 -- name: CreateURL :one
-INSERT INTO urls (original_url, short_code)
-VALUES ($1, $2)
+INSERT INTO urls (original_url, short_code, user_id)
+VALUES ($1, $2, $3)
 RETURNING short_code;
 
 -- name: GetURL :one
@@ -17,3 +17,9 @@ WHERE short_code = $1;
 UPDATE urls
 SET click_count = click_count + 1
 WHERE short_code = $1;
+
+-- name: GetURLsByUserID :many
+SELECT *
+FROM urls
+WHERE user_id = $1
+ORDER BY created_at DESC;
