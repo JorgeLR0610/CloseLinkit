@@ -49,8 +49,7 @@
       - Index on `urls.user_id` (`idx_urls_user_id`).
 
 3. **Environment Configuration:**
-   - Added `JWT_SECRET` to `.env` (used for signing and validating JWT access tokens).
-   - *(Note: Ensure `.env.example` includes a placeholder `JWT_SECRET=` if syncing configuration templates).*
+   - Added `JWT_SECRET` to `.env` (used for signing and validating JWT access tokens) and placeholder to `.env.example`.
 
 4. **SQL Queries & SQLC Repository Layer (Step 1 & Step 2 Completed):**
    - Created `server/db/queries/users.sql` (`CreateUser`, `GetUserByEmail`, `GetUserByID`, `UpdateUserPassword`, `MarkEmailVerified`).
@@ -58,18 +57,19 @@
    - Updated `server/db/queries/urls.sql` (`CreateURL` accepts optional `user_id`, added `GetURLsByUserID`).
    - Regenerated repository code via `make sqlc-generate` in `server/internal/repository/` (`models.go`, `urls.sql.go`, `users.sql.go`, `refresh_tokens.sql.go`).
 
+5. **Authentication Security & Service Layer (Step 3 Completed):**
+   - Created `server/internal/security/password.go` (`HashPassword`, `HashPasswordWithParams`, `VerifyPassword` using Argon2id with OWASP-recommended parameters and constant-time comparison).
+   - Created `server/internal/security/token.go` (JWT access token generation and validation using `golang-jwt/jwt/v5`, cryptographically secure refresh token issuance and SHA-256 hashing).
+   - Created `server/internal/service/auth.go` (`AuthService` and `AuthRepository` interface implementing `Register`, `Login`, `RefreshToken` with rotation, `Logout`, `RevokeAllUserSessions`, and `ValidateAccessToken`).
+   - Added comprehensive unit test suites in `security/` (`password_test.go`, `token_test.go`) and `service/` (`auth_test.go`).
+
 ---
 
 ## Active Task & Next Steps
 
 The overarching objective is to implement **JWT-based User Authentication** starting from the server side (transition towards `v0.3.0`).
 
-### Immediate Step 3: Service Layer Implementation
-- Add password hashing utilities (using `golang.org/x/crypto/argon2`).
-- Implement JWT token generation, claims handling, and validation in `server/internal/service/` (e.g. `auth.go`).
-- Implement refresh token issuance, rotation, and revocation logic.
-
-### Subsequent Step 4: Handler & Transport Layer
+### Immediate Step 4: Handler & Transport Layer
 - Create handlers for auth routes:
   - `POST /api/v1/auth/register`
   - `POST /api/v1/auth/login`
@@ -79,5 +79,5 @@ The overarching objective is to implement **JWT-based User Authentication** star
 - Update `POST /api/v1/shorten` to optionally associate the created URL with the authenticated user.
 
 ### Subsequent Step 5: Testing & Documentation
-- Write unit tests for new service methods, middleware, and handlers.
+- Write unit tests for new handler routes and middleware.
 - Update `server/docs/openapi.yaml` to document the new auth endpoints.
