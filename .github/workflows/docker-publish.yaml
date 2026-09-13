@@ -4,7 +4,6 @@ on:
   push:
     tags:
       - "v*.*.*"
-
   pull_request:
 
 env:
@@ -12,10 +11,27 @@ env:
   IMAGE_PREFIX: ${{ github.repository_owner }}/closelinkit
 
 jobs:
+  changes:
+    name: Backend Changes
+    runs-on: ubuntu-latest
+    permissions:
+      pull-requests: read
+    outputs:
+      backend: ${{ steps.filter.outputs.backend }}
+    steps:
+      - name: Detect changes
+        id: filter
+        uses: dorny/paths-filter@v4
+        with:
+          filters: |
+            backend:
+              - "server/**"
+
   api:
     name: Build and publish API
+    needs: changes
+    if: github.event_name == 'push' || needs.changes.outputs.backend == 'true'
     runs-on: ubuntu-latest
-
     permissions:
       contents: read
       packages: write
