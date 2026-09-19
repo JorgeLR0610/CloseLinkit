@@ -7,6 +7,7 @@ import (
 
 	"github.com/JorgeLR0610/CloseLinkit/internal/repository"
 	"github.com/JorgeLR0610/CloseLinkit/internal/service"
+	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgconn"
 )
 
@@ -213,4 +214,59 @@ func TestURLService_CreateShortCode(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestURLService_CreateShortCode_WithAuthenticatedUser(t *testing.T) {
+	testUserID := uuid.New()
+	generator := &mockShortCodeGenerator{
+		GenerateShortCodeFunc: func() (string, error) {
+			return "abcDEFg", nil
+		},
+	}
+
+	t.Run("authenticated context sets user_id", func(t *testing.T) {
+		var capturedArg repository.CreateURLParams
+		repo := &mockURLRepository{
+			CreateURLFunc: func(ctx context.Context, arg repository.CreateURLParams) (string, error) {
+				capturedArg = arg
+				return arg.ShortCode, nil
+			},
+		}
+
+		srv := service.NewURLService(repo, generator)
+		ctx := service.ContextWithUserID(context.Background(), testUserID)
+
+		_, err := srv.CreateShortCode(ctx, "https://example.com")
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+
+		if !capturedArg.UserID.Valid {
+			t.Fatal("expected UserID to be valid")
+		}
+		if capturedArg.UserID.Bytes != testUserID {
+			t.Errorf("expected UserID %v, got %v", testUserID, capturedArg.UserID.Bytes)
+		}
+	})
+
+	t.Run("unauthenticated context leaves user_id invalid (null)", func(t *testing.T) {
+		var capturedArg repository.CreateURLParams
+		repo := &mockURLRepository{
+			CreateURLFunc: func(ctx context.Context, arg repository.CreateURLParams) (string, error) {
+				capturedArg = arg
+				return arg.ShortCode, nil
+			},
+		}
+
+		srv := service.NewURLService(repo, generator)
+
+		_, err := srv.CreateShortCode(context.Background(), "https://example.com")
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+
+		if capturedArg.UserID.Valid {
+			t.Error("expected UserID.Valid to be false for anonymous shorten")
+		}
+	})
 }

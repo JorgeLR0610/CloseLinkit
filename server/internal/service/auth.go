@@ -272,11 +272,9 @@ func (s *AuthService) generateAndStoreTokens(ctx context.Context, userID uuid.UU
 	}
 
 	tokenHash := security.HashRefreshToken(rawRefreshToken)
-	refreshTokenID := uuid.New()
 	expiresAt := time.Now().Add(s.cfg.RefreshTokenTTL)
 
 	_, err = s.repo.CreateRefreshToken(ctx, repository.CreateRefreshTokenParams{
-		ID:        pgtype.UUID{Bytes: refreshTokenID, Valid: true},
 		UserID:    pgtype.UUID{Bytes: userID, Valid: true},
 		TokenHash: tokenHash,
 		ExpiresAt: pgtype.Timestamptz{Time: expiresAt, Valid: true},
@@ -290,4 +288,19 @@ func (s *AuthService) generateAndStoreTokens(ctx context.Context, userID uuid.UU
 		RefreshToken: rawRefreshToken,
 		ExpiresIn:    int64(s.cfg.AccessTokenTTL.Seconds()),
 	}, nil
+}
+
+type userContextKey struct{}
+
+func ContextWithUserID(ctx context.Context, userID uuid.UUID) context.Context {
+	return context.WithValue(ctx, userContextKey{}, userID)
+}
+
+func UserIDFromContext(ctx context.Context) (uuid.UUID, bool) {
+	val := ctx.Value(userContextKey{})
+	if val == nil {
+		return uuid.Nil, false
+	}
+	id, ok := val.(uuid.UUID)
+	return id, ok
 }

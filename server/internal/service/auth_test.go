@@ -261,7 +261,7 @@ func TestAuthService_Login(t *testing.T) {
 					},
 					CreateRefreshTokenFunc: func(ctx context.Context, arg repository.CreateRefreshTokenParams) (repository.RefreshToken, error) {
 						return repository.RefreshToken{
-							ID:        arg.ID,
+							ID:        pgtype.UUID{Bytes: uuid.New(), Valid: true},
 							UserID:    arg.UserID,
 							TokenHash: arg.TokenHash,
 							ExpiresAt: arg.ExpiresAt,

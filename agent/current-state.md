@@ -63,21 +63,20 @@
    - Created `server/internal/service/auth.go` (`AuthService` and `AuthRepository` interface implementing `Register`, `Login`, `RefreshToken` with rotation, `Logout`, `RevokeAllUserSessions`, and `ValidateAccessToken`).
    - Added comprehensive unit test suites in `security/` (`password_test.go`, `token_test.go`) and `service/` (`auth_test.go`).
 
+6. **Authentication Handler & Transport Layer (Step 4 Completed):**
+   - Created `server/internal/api/v1/auth.go` (handlers for `POST /api/v1/auth/register`, `POST /api/v1/auth/login`, `POST /api/v1/auth/refresh`, and `POST /api/v1/auth/logout`).
+   - Created `server/internal/middleware/auth.go` (`RequireAuth` and `OptionalAuth` middlewares with context injection of `user_id`).
+   - Updated `server/internal/service/urls.go` to optionally associate the created shortened URL with authenticated users via `UserIDFromContext`.
+   - Wired auth routes and `OptionalAuth` into `server/cmd/CloseLinkit/main.go`.
+   - Added comprehensive unit test suites (`server/internal/api/v1/auth_test.go` and `server/internal/middleware/auth_test.go`).
+
 ---
 
 ## Active Task & Next Steps
 
 The overarching objective is to implement **JWT-based User Authentication** starting from the server side (transition towards `v0.3.0`).
 
-### Immediate Step 4: Handler & Transport Layer
-- Create handlers for auth routes:
-  - `POST /api/v1/auth/register`
-  - `POST /api/v1/auth/login`
-  - `POST /api/v1/auth/refresh`
-  - `POST /api/v1/auth/logout`
-- Implement JWT middleware (`server/internal/middleware/auth.go`) to authenticate requests and inject `user_id` into request context.
-- Update `POST /api/v1/shorten` to optionally associate the created URL with the authenticated user.
+### Immediate Step 5: Testing & Documentation
+- Update `server/docs/openapi.yaml` to document the new auth endpoints (`/auth/register`, `/auth/login`, `/auth/refresh`, `/auth/logout`) and updated `/shorten`.
+- Final validation of API contract and Swagger UI.
 
-### Subsequent Step 5: Testing & Documentation
-- Write unit tests for new handler routes and middleware.
-- Update `server/docs/openapi.yaml` to document the new auth endpoints.
