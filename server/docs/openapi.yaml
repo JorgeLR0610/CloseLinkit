@@ -7,9 +7,153 @@ servers:
   - url: http://localhost:8080
     description: Local development server
 paths:
+  /api/v1/auth/register:
+    post:
+      summary: Register a new user
+      description: Creates a new user account with email and password.
+      tags:
+        - Authentication
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RegisterRequest"
+      responses:
+        "201":
+          description: User registered successfully
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/UserResponse"
+        "400":
+          description: Invalid input (e.g. invalid email format or password shorter than 8 characters)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "409":
+          description: Email is already registered
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+  /api/v1/auth/login:
+    post:
+      summary: Log in user
+      description: Authenticates user credentials and returns a JWT access token along with a refresh token.
+      tags:
+        - Authentication
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/LoginRequest"
+      responses:
+        "200":
+          description: Authentication successful
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/LoginResponse"
+        "400":
+          description: Invalid request payload
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          description: Invalid email or password
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+  /api/v1/auth/refresh:
+    post:
+      summary: Refresh access token
+      description: Exchanges a valid refresh token for a new access token and rotated refresh token.
+      tags:
+        - Authentication
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RefreshTokenRequest"
+      responses:
+        "200":
+          description: Token refreshed successfully
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RefreshTokenResponse"
+        "400":
+          description: Missing or invalid refresh token in request
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          description: Invalid, expired, or revoked refresh token
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+  /api/v1/auth/logout:
+    post:
+      summary: Log out user
+      description: Revokes the provided refresh token session.
+      tags:
+        - Authentication
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/LogoutRequest"
+      responses:
+        "204":
+          description: Successfully logged out
+        "400":
+          description: Missing or invalid refresh token in request
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
   /api/v1/shorten:
     post:
       summary: Create a shortened URL
+      description: Creates a shortened URL. If a valid Bearer token is provided in the Authorization header, the URL will be linked to the authenticated user.
+      tags:
+        - URLs
+      security:
+        - {}
+        - bearerAuth: []
       requestBody:
         required: true
         content:
@@ -43,6 +187,8 @@ paths:
         may show a NetworkError, since browsers auto-follow redirects and the
         destination URL is external — this is expected browser behavior, not
         an API error. Use curl -v to inspect the raw 302 response.
+      tags:
+        - Redirect
       parameters:
         - name: shortCode
           in: path
@@ -72,6 +218,8 @@ paths:
   /api/v1/{shortCode}/stats:
     get:
       summary: Retrieve statistics for a shortened URL
+      tags:
+        - URLs
       parameters:
         - name: shortCode
           in: path
@@ -98,6 +246,12 @@ paths:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
 components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: "JWT access token. Format: Bearer <token>"
   schemas:
     CreateURLRequest:
       type: object
@@ -125,6 +279,105 @@ components:
           type: string
           format: date-time
           example: 2024-07-26T20:12:00Z
+    RegisterRequest:
+      type: object
+      required:
+        - email
+        - password
+      properties:
+        email:
+          type: string
+          format: email
+          example: user@example.com
+        password:
+          type: string
+          format: password
+          minLength: 8
+          example: secret123
+    LoginRequest:
+      type: object
+      required:
+        - email
+        - password
+      properties:
+        email:
+          type: string
+          format: email
+          example: user@example.com
+        password:
+          type: string
+          format: password
+          example: secret123
+    LoginResponse:
+      type: object
+      properties:
+        access_token:
+          type: string
+          example: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
+        refresh_token:
+          type: string
+          example: 7f8c9b0e1d2f...
+        expires_in:
+          type: integer
+          format: int64
+          description: Lifetime of the access token in seconds
+          example: 900
+        user:
+          $ref: "#/components/schemas/UserResponse"
+    RefreshTokenRequest:
+      type: object
+      required:
+        - refresh_token
+      properties:
+        refresh_token:
+          type: string
+          example: 7f8c9b0e1d2f...
+    RefreshTokenResponse:
+      type: object
+      properties:
+        access_token:
+          type: string
+          example: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
+        refresh_token:
+          type: string
+          example: a1b2c3d4e5f6...
+        expires_in:
+          type: integer
+          format: int64
+          description: Lifetime of the new access token in seconds
+          example: 900
+    LogoutRequest:
+      type: object
+      required:
+        - refresh_token
+      properties:
+        refresh_token:
+          type: string
+          example: 7f8c9b0e1d2f...
+    UserResponse:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+          example: 550e8400-e29b-41d4-a716-446655440000
+        email:
+          type: string
+          format: email
+          example: user@example.com
+        email_verified_at:
+          type: string
+          format: date-time
+          nullable: true
+          example: null
+        created_at:
+          type: string
+          format: date-time
+          example: 2026-09-19T10:00:00Z
+        updated_at:
+          type: string
+          format: date-time
+          example: 2026-09-19T10:00:00Z
     ErrorResponse:
       type: object
       properties:

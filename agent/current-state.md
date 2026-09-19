@@ -72,11 +72,26 @@
 
 ---
 
+7. **Testing & Documentation (Step 5 Completed):**
+   - Updated `server/docs/openapi.yaml` to document:
+     - Security scheme: `bearerAuth` (HTTP Bearer JWT).
+     - New endpoints: `POST /api/v1/auth/register`, `POST /api/v1/auth/login`, `POST /api/v1/auth/refresh`, `POST /api/v1/auth/logout`.
+     - Updated `POST /api/v1/shorten` with optional Bearer authentication scheme and updated description.
+     - New component schemas: `RegisterRequest`, `LoginRequest`, `LoginResponse`, `RefreshTokenRequest`, `RefreshTokenResponse`, `LogoutRequest`, `UserResponse`.
+   - Updated `README.md` API Endpoints reference table with authentication endpoints.
+   - Verified OpenAPI embedding and full backend test suite (`go test -count=1 ./... -race`) with all tests passing.
+   - Verified zero vulnerabilities with `make govulncheck`.
+
+---
+
 ## Active Task & Next Steps
 
-The overarching objective is to implement **JWT-based User Authentication** starting from the server side (transition towards `v0.3.0`).
+The backend JWT-based User Authentication milestones (Steps 1–5) are fully completed (ready for `v0.3.0`).
 
-### Immediate Step 5: Testing & Documentation
-- Update `server/docs/openapi.yaml` to document the new auth endpoints (`/auth/register`, `/auth/login`, `/auth/refresh`, `/auth/logout`) and updated `/shorten`.
-- Final validation of API contract and Swagger UI.
+### Next Steps:
+- Frontend Authentication Integration:
+  - Auth context and token management (handling access tokens, refresh token rotation, in-memory/secure cookie storage).
+  - Register & Login UI components and forms.
+  - Authenticated user session state in frontend navigation.
+  - User Dashboard to view and manage user-created short links.
 
