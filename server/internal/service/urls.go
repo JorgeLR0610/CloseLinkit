@@ -11,6 +11,7 @@ import (
 	"github.com/JorgeLR0610/CloseLinkit/internal/repository"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgconn"
+	"github.com/jackc/pgx/v5/pgtype"
 )
 
 type URLRepository interface {
@@ -86,6 +87,11 @@ func (s *URLService) CreateShortCode(ctx context.Context, originalURL string) (s
 		return "", ErrNoHost
 	}
 
+	var userUUID pgtype.UUID
+	if userID, ok := UserIDFromContext(ctx); ok {
+		userUUID = pgtype.UUID{Bytes: userID, Valid: true}
+	}
+
 	// Try to create and store short code, up to the defined number of attempts
 	for range maxRetries {
 		shortCode, err := s.generator.GenerateShortCode()
@@ -96,6 +102,7 @@ func (s *URLService) CreateShortCode(ctx context.Context, originalURL string) (s
 		createdURL, err := s.repo.CreateURL(ctx, repository.CreateURLParams{
 			OriginalUrl: parsedURL.String(),
 			ShortCode:   shortCode,
+			UserID:      userUUID,
 		})
 		if err != nil {
 			if pgErr, ok := errors.AsType[*pgconn.PgError](err); ok {

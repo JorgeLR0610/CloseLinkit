@@ -12,25 +12,19 @@ import (
 )
 
 const createRefreshToken = `-- name: CreateRefreshToken :one
-INSERT INTO refresh_tokens (id, user_id, token_hash, expires_at)
-VALUES ($1, $2, $3, $4)
+INSERT INTO refresh_tokens (user_id, token_hash, expires_at)
+VALUES ($1, $2, $3)
 RETURNING id, user_id, token_hash, created_at, expires_at, revoked_at
 `
 
 type CreateRefreshTokenParams struct {
-	ID        pgtype.UUID
 	UserID    pgtype.UUID
 	TokenHash string
 	ExpiresAt pgtype.Timestamptz
 }
 
 func (q *Queries) CreateRefreshToken(ctx context.Context, arg CreateRefreshTokenParams) (RefreshToken, error) {
-	row := q.db.QueryRow(ctx, createRefreshToken,
-		arg.ID,
-		arg.UserID,
-		arg.TokenHash,
-		arg.ExpiresAt,
-	)
+	row := q.db.QueryRow(ctx, createRefreshToken, arg.UserID, arg.TokenHash, arg.ExpiresAt)
 	var i RefreshToken
 	err := row.Scan(
 		&i.ID,

@@ -37,6 +37,15 @@ func main() {
 	}
 	allowedOrigins = strings.Split(corsOriginRaw, ",")
 
+	// Load JWT secret env var
+	jwtSecret := os.Getenv("JWT_SECRET")
+	if jwtSecret == "" {
+		logger.Error(
+			"could not load JWT_SECRET environment variable",
+		)
+		os.Exit(1)
+	}
+
 	// shortenRateLimiter middleware
 	shortenRateLimiter := middleware.NewIPRateLimiter(1, 5, 15*time.Minute, 10*time.Minute)
 	statsRateLimiter := middleware.NewIPRateLimiter(5, 10, 5*time.Minute, 2*time.Minute)
@@ -78,9 +87,13 @@ func main() {
 
 	// Services
 	urlsSvc := service.NewURLService(queries, gen)
+	authSvc := service.NewAuthService(queries, service.AuthConfig{
+		JWTSecret: []byte(jwtSecret),
+	})
 
 	// Handlers
 	urlsHandler := api.NewURLHandler(urlsSvc, logger, os.Getenv("BASE_URL"))
+	authHandler := api.NewAuthHandler(authSvc, logger)
 
 	// Background goroutines to clean up inactive IPs
 	go shortenRateLimiter.CleanInactiveIPs()
@@ -93,7 +106,9 @@ func main() {
 		"POST /api/v1/shorten",
 		middleware.RequestLogging(logger)(
 			middleware.RateLimiting(shortenRateLimiter, logger)(
-				http.HandlerFunc(urlsHandler.HandlerCreateURL),
+				middleware.OptionalAuth(authSvc, logger)(
+					http.HandlerFunc(urlsHandler.HandlerCreateURL),
+				),
 			),
 		),
 	)
@@ -111,6 +126,35 @@ func main() {
 		"GET /{shortCode}",
 		middleware.RequestLogging(logger)(
 			http.HandlerFunc(urlsHandler.HandlerResolveShortURL),
+		),
+	)
+
+	// Auth endpoints
+	mux.Handle(
+		"POST /api/v1/auth/register",
+		middleware.RequestLogging(logger)(
+			http.HandlerFunc(authHandler.HandlerRegister),
+		),
+	)
+
+	mux.Handle(
+		"POST /api/v1/auth/login",
+		middleware.RequestLogging(logger)(
+			http.HandlerFunc(authHandler.HandlerLogin),
+		),
+	)
+
+	mux.Handle(
+		"POST /api/v1/auth/refresh",
+		middleware.RequestLogging(logger)(
+			http.HandlerFunc(authHandler.HandlerRefreshToken),
+		),
+	)
+
+	mux.Handle(
+		"POST /api/v1/auth/logout",
+		middleware.RequestLogging(logger)(
+			http.HandlerFunc(authHandler.HandlerLogout),
 		),
 	)
 
