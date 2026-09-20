@@ -65,10 +65,6 @@ func HashPasswordWithParams(password string, params Argon2Params) (string, error
 	return encoded, nil
 }
 
-func HashPassword(password string) (string, error) {
-	return HashPasswordWithParams(password, DefaultArgon2Params)
-}
-
 func VerifyPassword(password, encodedHash string) (bool, error) {
 	parts := strings.Split(encodedHash, "$")
 	if len(parts) != 6 || parts[1] != "argon2id" {

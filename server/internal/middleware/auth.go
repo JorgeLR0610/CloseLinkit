@@ -40,6 +40,7 @@ func extractBearerToken(authHeader string) (string, bool) {
 	return token, true
 }
 
+// No auth required endpoints have been added yet
 func RequireAuth(validator TokenValidator, logger *slog.Logger) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -56,7 +57,13 @@ func RequireAuth(validator TokenValidator, logger *slog.Logger) func(http.Handle
 				return
 			}
 
-			ctx := service.ContextWithUserID(r.Context(), claims.UserID)
+			userID, err := claims.UserID()
+			if err != nil {
+				writeAuthError(w, logger, "Invalid user identifier in token")
+				return
+			}
+
+			ctx := service.ContextWithUserID(r.Context(), userID)
 			next.ServeHTTP(w, r.WithContext(ctx))
 		})
 	}
@@ -83,7 +90,13 @@ func OptionalAuth(validator TokenValidator, logger *slog.Logger) func(http.Handl
 				return
 			}
 
-			ctx := service.ContextWithUserID(r.Context(), claims.UserID)
+			userID, err := claims.UserID()
+			if err != nil {
+				writeAuthError(w, logger, "Invalid user identifier in token")
+				return
+			}
+
+			ctx := service.ContextWithUserID(r.Context(), userID)
 			next.ServeHTTP(w, r.WithContext(ctx))
 		})
 	}
