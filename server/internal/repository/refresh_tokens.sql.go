@@ -11,10 +11,9 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
-const createRefreshToken = `-- name: CreateRefreshToken :one
+const createRefreshToken = `-- name: CreateRefreshToken :exec
 INSERT INTO refresh_tokens (user_id, token_hash, expires_at)
 VALUES ($1, $2, $3)
-RETURNING id, user_id, token_hash, created_at, expires_at, revoked_at
 `
 
 type CreateRefreshTokenParams struct {
@@ -23,18 +22,9 @@ type CreateRefreshTokenParams struct {
 	ExpiresAt pgtype.Timestamptz
 }
 
-func (q *Queries) CreateRefreshToken(ctx context.Context, arg CreateRefreshTokenParams) (RefreshToken, error) {
-	row := q.db.QueryRow(ctx, createRefreshToken, arg.UserID, arg.TokenHash, arg.ExpiresAt)
-	var i RefreshToken
-	err := row.Scan(
-		&i.ID,
-		&i.UserID,
-		&i.TokenHash,
-		&i.CreatedAt,
-		&i.ExpiresAt,
-		&i.RevokedAt,
-	)
-	return i, err
+func (q *Queries) CreateRefreshToken(ctx context.Context, arg CreateRefreshTokenParams) error {
+	_, err := q.db.Exec(ctx, createRefreshToken, arg.UserID, arg.TokenHash, arg.ExpiresAt)
+	return err
 }
 
 const deleteExpiredTokens = `-- name: DeleteExpiredTokens :exec

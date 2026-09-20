@@ -22,7 +22,7 @@ type mockAuthRepository struct {
 	GetUserByIDFunc                func(ctx context.Context, id pgtype.UUID) (repository.User, error)
 	UpdateUserPasswordFunc         func(ctx context.Context, arg repository.UpdateUserPasswordParams) error
 	MarkEmailVerifiedFunc          func(ctx context.Context, id pgtype.UUID) error
-	CreateRefreshTokenFunc         func(ctx context.Context, arg repository.CreateRefreshTokenParams) (repository.RefreshToken, error)
+	CreateRefreshTokenFunc         func(ctx context.Context, arg repository.CreateRefreshTokenParams) error
 	GetRefreshTokenByHashFunc      func(ctx context.Context, tokenHash string) (repository.RefreshToken, error)
 	RevokeRefreshTokenFunc         func(ctx context.Context, tokenHash string) error
 	RevokeRefreshTokenByIDFunc     func(ctx context.Context, id pgtype.UUID) error
@@ -68,12 +68,12 @@ func (m *mockAuthRepository) MarkEmailVerified(ctx context.Context, id pgtype.UU
 	return nil
 }
 
-func (m *mockAuthRepository) CreateRefreshToken(ctx context.Context, arg repository.CreateRefreshTokenParams) (repository.RefreshToken, error) {
+func (m *mockAuthRepository) CreateRefreshToken(ctx context.Context, arg repository.CreateRefreshTokenParams) error {
 	m.createRefreshTokenCalls++
 	if m.CreateRefreshTokenFunc != nil {
 		return m.CreateRefreshTokenFunc(ctx, arg)
 	}
-	return repository.RefreshToken{}, nil
+	return nil
 }
 
 func (m *mockAuthRepository) GetRefreshTokenByHash(ctx context.Context, tokenHash string) (repository.RefreshToken, error) {
@@ -259,13 +259,8 @@ func TestAuthService_Login(t *testing.T) {
 							UpdatedAt:      pgtype.Timestamptz{Time: time.Now(), Valid: true},
 						}, nil
 					},
-					CreateRefreshTokenFunc: func(ctx context.Context, arg repository.CreateRefreshTokenParams) (repository.RefreshToken, error) {
-						return repository.RefreshToken{
-							ID:        pgtype.UUID{Bytes: uuid.New(), Valid: true},
-							UserID:    arg.UserID,
-							TokenHash: arg.TokenHash,
-							ExpiresAt: arg.ExpiresAt,
-						}, nil
+					CreateRefreshTokenFunc: func(ctx context.Context, arg repository.CreateRefreshTokenParams) error {
+						return nil
 					},
 				}
 			},
@@ -355,8 +350,8 @@ func TestAuthService_RefreshToken(t *testing.T) {
 					Email: "user@example.com",
 				}, nil
 			},
-			CreateRefreshTokenFunc: func(ctx context.Context, arg repository.CreateRefreshTokenParams) (repository.RefreshToken, error) {
-				return repository.RefreshToken{}, nil
+			CreateRefreshTokenFunc: func(ctx context.Context, arg repository.CreateRefreshTokenParams) error {
+				return nil
 			},
 		}
 
@@ -494,7 +489,13 @@ func TestAuthService_ValidateAccessToken(t *testing.T) {
 	if err != nil {
 		t.Fatalf("failed to validate access token: %v", err)
 	}
-	if claims.UserID != userID || claims.Email != email {
+
+	actualUserID, err := claims.UserID()
+	if err != nil {
+		t.Fatalf("unexpected error getting actual userID: %v", err)
+	}
+
+	if actualUserID != userID || claims.Email != email {
 		t.Errorf("claims do not match expected values")
 	}
 }
