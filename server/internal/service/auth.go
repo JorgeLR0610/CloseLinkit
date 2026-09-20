@@ -37,7 +37,7 @@ type AuthRepository interface {
 	UpdateUserPassword(ctx context.Context, arg repository.UpdateUserPasswordParams) error
 	MarkEmailVerified(ctx context.Context, id pgtype.UUID) error
 
-	CreateRefreshToken(ctx context.Context, arg repository.CreateRefreshTokenParams) (repository.RefreshToken, error)
+	CreateRefreshToken(ctx context.Context, arg repository.CreateRefreshTokenParams) error
 	GetRefreshTokenByHash(ctx context.Context, tokenHash string) (repository.RefreshToken, error)
 	RevokeRefreshToken(ctx context.Context, tokenHash string) error
 	RevokeRefreshTokenByID(ctx context.Context, id pgtype.UUID) error
@@ -274,7 +274,7 @@ func (s *AuthService) generateAndStoreTokens(ctx context.Context, userID uuid.UU
 	tokenHash := security.HashRefreshToken(rawRefreshToken)
 	expiresAt := time.Now().Add(s.cfg.RefreshTokenTTL)
 
-	_, err = s.repo.CreateRefreshToken(ctx, repository.CreateRefreshTokenParams{
+	err = s.repo.CreateRefreshToken(ctx, repository.CreateRefreshTokenParams{
 		UserID:    pgtype.UUID{Bytes: userID, Valid: true},
 		TokenHash: tokenHash,
 		ExpiresAt: pgtype.Timestamptz{Time: expiresAt, Valid: true},
