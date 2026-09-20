@@ -10,6 +10,7 @@ import (
 
 	"github.com/JorgeLR0610/CloseLinkit/internal/middleware"
 	"github.com/JorgeLR0610/CloseLinkit/internal/security"
+	"github.com/golang-jwt/jwt/v5"
 	"github.com/google/uuid"
 )
 
@@ -31,13 +32,26 @@ func testLogger() *slog.Logger {
 func TestRequireAuth(t *testing.T) {
 	expectedUserID := uuid.New()
 	validToken := "valid.jwt.token"
+	malformedSubjectToken := "valid.signature.invalid.uuid"
 
 	validator := &mockTokenValidator{
 		ValidateAccessTokenFunc: func(tokenString string) (*security.Claims, error) {
-			if tokenString == validToken {
-				return &security.Claims{UserID: expectedUserID}, nil
+			switch tokenString {
+			case validToken:
+				return &security.Claims{
+					RegisteredClaims: jwt.RegisteredClaims{
+						Subject: expectedUserID.String(),
+					},
+				}, nil
+			case malformedSubjectToken:
+				return &security.Claims{
+					RegisteredClaims: jwt.RegisteredClaims{
+						Subject: "not-a-valid-uuid",
+					},
+				}, nil
+			default:
+				return nil, errors.New("invalid token")
 			}
-			return nil, errors.New("invalid token")
 		},
 	}
 
@@ -82,6 +96,12 @@ func TestRequireAuth(t *testing.T) {
 			authHeader:     "bearer " + validToken,
 			expectedStatus: http.StatusOK,
 			expectNext:     true,
+		},
+		{
+			name:           "token with malformed subject UUID",
+			authHeader:     "Bearer " + malformedSubjectToken,
+			expectedStatus: http.StatusUnauthorized,
+			expectNext:     false,
 		},
 	}
 
@@ -132,7 +152,11 @@ func TestOptionalAuth(t *testing.T) {
 	validator := &mockTokenValidator{
 		ValidateAccessTokenFunc: func(tokenString string) (*security.Claims, error) {
 			if tokenString == validToken {
-				return &security.Claims{UserID: expectedUserID}, nil
+				return &security.Claims{
+					RegisteredClaims: jwt.RegisteredClaims{
+						Subject: expectedUserID.String(),
+					},
+				}, nil
 			}
 			return nil, errors.New("invalid token")
 		},

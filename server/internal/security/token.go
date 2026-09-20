@@ -22,8 +22,7 @@ var (
 )
 
 type Claims struct {
-	UserID uuid.UUID `json:"user_id"`
-	Email  string    `json:"email"`
+	Email string `json:"email"`
 	jwt.RegisteredClaims
 }
 
@@ -32,6 +31,10 @@ const (
 	DefaultRefreshTokenTTL = 7 * 24 * time.Hour
 	TokenIssuer            = "CloseLinkit"
 )
+
+func (c *Claims) UserID() (uuid.UUID, error) {
+	return uuid.Parse(c.Subject)
+}
 
 func GenerateAccessToken(secret []byte, userID uuid.UUID, email string, ttl time.Duration) (string, error) {
 	if len(secret) == 0 {
@@ -43,8 +46,7 @@ func GenerateAccessToken(secret []byte, userID uuid.UUID, email string, ttl time
 
 	now := time.Now()
 	claims := Claims{
-		UserID: userID,
-		Email:  email,
+		Email: email,
 		RegisteredClaims: jwt.RegisteredClaims{
 			Subject:   userID.String(),
 			Issuer:    TokenIssuer,

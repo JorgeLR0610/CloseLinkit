@@ -26,8 +26,13 @@ func TestGenerateAndValidateAccessToken(t *testing.T) {
 		t.Fatalf("unexpected error validating token: %v", err)
 	}
 
-	if claims.UserID != userID {
-		t.Errorf("expected userID %v, got %v", userID, claims.UserID)
+	actualUserID, err := claims.UserID()
+	if err != nil {
+		t.Fatalf("unexpected error getting actual userID: %v", err)
+	}
+
+	if actualUserID != userID {
+		t.Errorf("expected userID %v, got %v", userID, actualUserID)
 	}
 	if claims.Email != email {
 		t.Errorf("expected email %s, got %s", email, claims.Email)
@@ -48,8 +53,7 @@ func TestValidateAccessToken_Expired(t *testing.T) {
 	// Create an expired token
 	now := time.Now().Add(-1 * time.Hour)
 	claims := security.Claims{
-		UserID: userID,
-		Email:  email,
+		Email: email,
 		RegisteredClaims: jwt.RegisteredClaims{
 			Subject:   userID.String(),
 			Issuer:    security.TokenIssuer,
@@ -98,8 +102,7 @@ func TestValidateAccessToken_NoneAlgorithm(t *testing.T) {
 	email := "test@example.com"
 
 	claims := security.Claims{
-		UserID: userID,
-		Email:  email,
+		Email: email,
 		RegisteredClaims: jwt.RegisteredClaims{
 			Subject: userID.String(),
 		},
