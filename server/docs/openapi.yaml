@@ -179,6 +179,35 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
+  /api/v1/urls:
+    get:
+      summary: Retrieve all shortened URLs for the authenticated user
+      description: Returns a list of shortened URLs created by the authenticated user, ordered by creation date descending.
+      tags:
+        - URLs
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: List of user's shortened URLs
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/UserURLResponse"
+        "401":
+          description: Missing, invalid, or expired authorization token
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
   /{shortCode}:
     get:
       summary: Redirect to the original URL
@@ -378,6 +407,27 @@ components:
           type: string
           format: date-time
           example: 2026-09-19T10:00:00Z
+    UserURLResponse:
+      type: object
+      properties:
+        original_url:
+          type: string
+          format: uri
+          example: https://example.com/long-page
+        short_code:
+          type: string
+          example: aB3dE1z
+        short_url:
+          type: string
+          format: uri
+          example: http://closelinkit.test/aB3dE1z
+        created_at:
+          type: string
+          format: date-time
+          example: 2026-09-21T15:04:05Z
+        click_count:
+          type: integer
+          example: 12
     ErrorResponse:
       type: object
       properties:

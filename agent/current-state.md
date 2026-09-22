@@ -70,8 +70,6 @@
    - Wired auth routes and `OptionalAuth` into `server/cmd/CloseLinkit/main.go`.
    - Added comprehensive unit test suites (`server/internal/api/v1/auth_test.go` and `server/internal/middleware/auth_test.go`).
 
----
-
 7. **Testing & Documentation (Step 5 Completed):**
    - Updated `server/docs/openapi.yaml` to document:
      - Security scheme: `bearerAuth` (HTTP Bearer JWT).
@@ -81,6 +79,14 @@
    - Updated `README.md` API Endpoints reference table with authentication endpoints.
    - Verified OpenAPI embedding and full backend test suite (`go test -count=1 ./... -race`) with all tests passing.
    - Verified zero vulnerabilities with `make govulncheck`.
+
+8. **User URLs Endpoint (`GET /api/v1/urls`):**
+   - Protected endpoint with `RequireAuth` middleware to retrieve all URLs belonging to the authenticated user.
+   - Utilizes `GetURLsByUserID` (`SELECT original_url, short_code, created_at, click_count FROM urls WHERE user_id = $1 ORDER BY created_at DESC`).
+   - Domain mapping in `URLService.GetURLsByUserID` (`service.UserURL`) ensuring a non-nil slice (`[]UserURL{}`) when empty.
+   - DTO mapping in `URLHandler.HandlerGetUserURLs` (`api.UserURLResponse`) computing full `short_url` (`baseURL + "/" + short_code`).
+   - Fully covered with unit tests in `service/urls_test.go` and `api/v1/urls_test.go`.
+   - Documented in `server/docs/openapi.yaml` and `README.md`.
 
 ---
 
