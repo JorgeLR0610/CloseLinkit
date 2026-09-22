@@ -7,8 +7,10 @@ import (
 	"net"
 	"net/url"
 	"strings"
+	"time"
 
 	"github.com/JorgeLR0610/CloseLinkit/internal/repository"
+	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgtype"
@@ -19,6 +21,14 @@ type URLRepository interface {
 	GetURL(ctx context.Context, shortCode string) (string, error)
 	GetURLStats(ctx context.Context, shortCode string) (repository.GetURLStatsRow, error)
 	IncrementClickCount(ctx context.Context, shortCode string) error
+	GetURLsByUserID(ctx context.Context, userID pgtype.UUID) ([]repository.GetURLsByUserIDRow, error)
+}
+
+type UserURL struct {
+	OriginalURL string
+	ShortCode   string
+	CreatedAt   time.Time
+	ClickCount  int
 }
 
 type ShortCodeGenerator interface {
@@ -146,4 +156,23 @@ func (s *URLService) GetURLStats(ctx context.Context, shortCode string) (reposit
 	}
 
 	return stats, nil
+}
+
+func (s *URLService) GetURLsByUserID(ctx context.Context, userID uuid.UUID) ([]UserURL, error) {
+	rows, err := s.repo.GetURLsByUserID(ctx, pgtype.UUID{Bytes: userID, Valid: true})
+	if err != nil {
+		return nil, fmt.Errorf("error retrieving URLs for user: %w", err)
+	}
+
+	result := make([]UserURL, 0, len(rows))
+	for _, row := range rows {
+		result = append(result, UserURL{
+			OriginalURL: row.OriginalUrl,
+			ShortCode:   row.ShortCode,
+			CreatedAt:   row.CreatedAt.Time,
+			ClickCount:  int(row.ClickCount),
+		})
+	}
+
+	return result, nil
 }
