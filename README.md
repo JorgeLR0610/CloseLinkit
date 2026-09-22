@@ -174,6 +174,7 @@ The Go backend exposes a clean REST API. Full request/response schemas and inter
 | `POST` | `/api/v1/auth/refresh` | Refreshes an expired access token using a valid refresh token |
 | `POST` | `/api/v1/auth/logout` | Revokes the refresh token and ends the session |
 | `POST` | `/api/v1/shorten` | Shortens a long URL (optionally associates with authenticated user if Bearer token is provided) |
+| `GET` | `/api/v1/urls` | Retrieves all shortened URLs for the authenticated user (Requires Bearer token) |
 | `GET` | `/api/v1/{shortCode}/stats` | Retrieves access counts and statistics for a short code |
 | `GET` | `/{shortCode}` | Resolves short code and issues an HTTP 302 redirect to original URL |
 | `GET` | `/docs/` | Serves embedded Swagger UI documentation |
