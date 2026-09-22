@@ -95,9 +95,12 @@ func main() {
 	urlsHandler := api.NewURLHandler(urlsSvc, logger, os.Getenv("BASE_URL"))
 	authHandler := api.NewAuthHandler(authSvc, logger)
 
-	// Background goroutines to clean up inactive IPs
+	// Goroutines to clean up inactive IPs
 	go shortenRateLimiter.CleanInactiveIPs()
 	go statsRateLimiter.CleanInactiveIPs()
+
+	// Goroutine to clean expired refresh tokens
+	go authSvc.StartRefreshTokenCleanup(ctx, 1*time.Hour, logger)
 
 	mux := http.NewServeMux()
 

@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"log/slog"
 	"net/mail"
 	"strings"
 	"time"
@@ -303,4 +304,32 @@ func UserIDFromContext(ctx context.Context) (uuid.UUID, bool) {
 	}
 	id, ok := val.(uuid.UUID)
 	return id, ok
+}
+
+func (s *AuthService) StartRefreshTokenCleanup(ctx context.Context, interval time.Duration, logger *slog.Logger) {
+	ticker := time.NewTicker(interval)
+	defer ticker.Stop()
+
+	// Initial cleanup
+	if err := s.repo.DeleteExpiredTokens(ctx); err != nil && !errors.Is(err, context.Canceled) {
+		logger.Error(
+			"failed initial cleanup of expired tokens",
+			slog.Any("error", err),
+		)
+	}
+
+	// Following cleanups
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-ticker.C:
+			if err := s.repo.DeleteExpiredTokens(ctx); err != nil && !errors.Is(err, context.Canceled) {
+				logger.Error(
+					"failed periodic cleanup of expired tokens",
+					slog.Any("error", err),
+				)
+			}
+		}
+	}
 }
