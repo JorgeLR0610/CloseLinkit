@@ -15,6 +15,14 @@ type GetURLStatsResponse struct {
 	CreatedAt  time.Time `json:"created_at"`
 }
 
+type UserURLResponse struct {
+	OriginalURL string    `json:"original_url"`
+	ShortCode   string    `json:"short_code"`
+	ShortURL    string    `json:"short_url"`
+	CreatedAt   time.Time `json:"created_at"`
+	ClickCount  int       `json:"click_count"`
+}
+
 type RegisterRequest struct {
 	Email    string `json:"email"`
 	Password string `json:"password"`

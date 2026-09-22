@@ -12,6 +12,7 @@ import (
 	"github.com/JorgeLR0610/CloseLinkit/internal/response"
 	"github.com/JorgeLR0610/CloseLinkit/internal/service"
 	"github.com/JorgeLR0610/CloseLinkit/web"
+	"github.com/google/uuid"
 )
 
 const InternalErrorMsg = "There was an error on our end. Please try again later"
@@ -20,6 +21,7 @@ type URLServicer interface {
 	CreateShortCode(ctx context.Context, originalURL string) (string, error)
 	ResolveShortCode(ctx context.Context, shortCode string) (string, error)
 	GetURLStats(ctx context.Context, shortCode string) (repository.GetURLStatsRow, error)
+	GetURLsByUserID(ctx context.Context, userID uuid.UUID) ([]service.UserURL, error)
 }
 
 type URLHandler struct {
@@ -146,6 +148,47 @@ func (h *URLHandler) HandlerGetURLStats(w http.ResponseWriter, r *http.Request) 
 	}); err != nil {
 		h.logger.Error(
 			"could not send stats response",
+			slog.String("method", r.Method),
+			slog.String("path", r.URL.Path),
+			slog.Any("error", err),
+		)
+	}
+}
+
+func (h *URLHandler) HandlerGetUserURLs(w http.ResponseWriter, r *http.Request) {
+	userID, ok := service.UserIDFromContext(r.Context())
+	if !ok {
+		h.writeErrorLogged(w, http.StatusUnauthorized, "Unauthorized")
+		return
+	}
+
+	urls, err := h.service.GetURLsByUserID(r.Context(), userID)
+	if err != nil {
+		h.writeErrorLogged(w, http.StatusInternalServerError, InternalErrorMsg)
+		h.logger.Error(
+			"could not retrieve user URLs",
+			slog.String("method", r.Method),
+			slog.String("path", r.URL.Path),
+			slog.String("user_id", userID.String()),
+			slog.Any("error", err),
+		)
+		return
+	}
+
+	responseURLs := make([]UserURLResponse, 0, len(urls))
+	for _, u := range urls {
+		responseURLs = append(responseURLs, UserURLResponse{
+			OriginalURL: u.OriginalURL,
+			ShortCode:   u.ShortCode,
+			ShortURL:    h.baseURL + "/" + u.ShortCode,
+			CreatedAt:   u.CreatedAt,
+			ClickCount:  u.ClickCount,
+		})
+	}
+
+	if err := response.WriteJSON(w, http.StatusOK, responseURLs); err != nil {
+		h.logger.Error(
+			"could not send user URLs response",
 			slog.String("method", r.Method),
 			slog.String("path", r.URL.Path),
 			slog.Any("error", err),

@@ -40,7 +40,6 @@ func extractBearerToken(authHeader string) (string, bool) {
 	return token, true
 }
 
-// No auth required endpoints have been added yet
 func RequireAuth(validator TokenValidator, logger *slog.Logger) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
