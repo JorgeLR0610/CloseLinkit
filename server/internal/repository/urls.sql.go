@@ -62,28 +62,33 @@ func (q *Queries) GetURLStats(ctx context.Context, shortCode string) (GetURLStat
 }
 
 const getURLsByUserID = `-- name: GetURLsByUserID :many
-SELECT id, original_url, short_code, created_at, click_count, user_id
+SELECT original_url, short_code, created_at, click_count
 FROM urls
 WHERE user_id = $1
 ORDER BY created_at DESC
 `
 
-func (q *Queries) GetURLsByUserID(ctx context.Context, userID pgtype.UUID) ([]Url, error) {
+type GetURLsByUserIDRow struct {
+	OriginalUrl string
+	ShortCode   string
+	CreatedAt   pgtype.Timestamptz
+	ClickCount  int32
+}
+
+func (q *Queries) GetURLsByUserID(ctx context.Context, userID pgtype.UUID) ([]GetURLsByUserIDRow, error) {
 	rows, err := q.db.Query(ctx, getURLsByUserID, userID)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	var items []Url
+	var items []GetURLsByUserIDRow
 	for rows.Next() {
-		var i Url
+		var i GetURLsByUserIDRow
 		if err := rows.Scan(
-			&i.ID,
 			&i.OriginalUrl,
 			&i.ShortCode,
 			&i.CreatedAt,
 			&i.ClickCount,
-			&i.UserID,
 		); err != nil {
 			return nil, err
 		}

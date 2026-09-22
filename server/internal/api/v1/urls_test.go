@@ -15,6 +15,7 @@ import (
 	"github.com/JorgeLR0610/CloseLinkit/internal/api/v1"
 	"github.com/JorgeLR0610/CloseLinkit/internal/repository"
 	"github.com/JorgeLR0610/CloseLinkit/internal/service"
+	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
@@ -23,6 +24,7 @@ type mockURLService struct {
 	CreateShortCodeFunc  func(ctx context.Context, originalURL string) (string, error)
 	ResolveShortCodeFunc func(ctx context.Context, shortCode string) (string, error)
 	GetURLStatsFunc      func(ctx context.Context, shortCode string) (repository.GetURLStatsRow, error)
+	GetURLsByUserIDFunc  func(ctx context.Context, userID uuid.UUID) ([]service.UserURL, error)
 }
 
 func (m *mockURLService) CreateShortCode(ctx context.Context, originalURL string) (string, error) {
@@ -44,6 +46,13 @@ func (m *mockURLService) GetURLStats(ctx context.Context, shortCode string) (rep
 		return m.GetURLStatsFunc(ctx, shortCode)
 	}
 	return repository.GetURLStatsRow{}, nil
+}
+
+func (m *mockURLService) GetURLsByUserID(ctx context.Context, userID uuid.UUID) ([]service.UserURL, error) {
+	if m.GetURLsByUserIDFunc != nil {
+		return m.GetURLsByUserIDFunc(ctx, userID)
+	}
+	return nil, nil
 }
 
 func TestURLHandler_HandlerCreateURL(t *testing.T) {
@@ -279,6 +288,149 @@ func TestURLHandler_HandlerGetURLStats(t *testing.T) {
 				if resp.ClickCount != 10 {
 					t.Errorf("expected response to have populated fields correctly, got: %+v", resp)
 				}
+			}
+		})
+	}
+}
+
+func TestURLHandler_HandlerGetUserURLs(t *testing.T) {
+	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
+	testUserID := uuid.MustParse("550e8400-e29b-41d4-a716-446655440000")
+	now := time.Now().Truncate(time.Second)
+
+	tests := []struct {
+		name           string
+		authenticated  bool
+		setupMock      func() *mockURLService
+		expectedStatus int
+		verifyBody     func(t *testing.T, body []byte)
+	}{
+		{
+			name:          "Successful retrieval with user URLs",
+			authenticated: true,
+			setupMock: func() *mockURLService {
+				return &mockURLService{
+					GetURLsByUserIDFunc: func(ctx context.Context, userID uuid.UUID) ([]service.UserURL, error) {
+						if userID != testUserID {
+							t.Fatalf("expected userID %v, got %v", testUserID, userID)
+						}
+						return []service.UserURL{
+							{
+								OriginalURL: "https://example.com/one",
+								ShortCode:   "code111",
+								CreatedAt:   now,
+								ClickCount:  5,
+							},
+							{
+								OriginalURL: "https://example.com/two",
+								ShortCode:   "code222",
+								CreatedAt:   now.Add(-time.Hour),
+								ClickCount:  0,
+							},
+						}, nil
+					},
+				}
+			},
+			expectedStatus: http.StatusOK,
+			verifyBody: func(t *testing.T, body []byte) {
+				var resp []api.UserURLResponse
+				if err := json.Unmarshal(body, &resp); err != nil {
+					t.Fatalf("could not unmarshal response: %v", err)
+				}
+				if len(resp) != 2 {
+					t.Fatalf("expected 2 items, got %d", len(resp))
+				}
+				if resp[0].ShortURL != "http://closelinkit.test/code111" {
+					t.Errorf("expected short_url http://closelinkit.test/code111, got %s", resp[0].ShortURL)
+				}
+				if resp[0].OriginalURL != "https://example.com/one" || resp[0].ShortCode != "code111" || resp[0].ClickCount != 5 {
+					t.Errorf("unexpected first item: %+v", resp[0])
+				}
+				if resp[1].ShortURL != "http://closelinkit.test/code222" {
+					t.Errorf("expected short_url http://closelinkit.test/code222, got %s", resp[1].ShortURL)
+				}
+			},
+		},
+		{
+			name:          "User has no URLs returns empty array",
+			authenticated: true,
+			setupMock: func() *mockURLService {
+				return &mockURLService{
+					GetURLsByUserIDFunc: func(ctx context.Context, userID uuid.UUID) ([]service.UserURL, error) {
+						return []service.UserURL{}, nil
+					},
+				}
+			},
+			expectedStatus: http.StatusOK,
+			verifyBody: func(t *testing.T, body []byte) {
+				var resp []api.UserURLResponse
+				if err := json.Unmarshal(body, &resp); err != nil {
+					t.Fatalf("could not unmarshal response: %v", err)
+				}
+				if resp == nil {
+					t.Fatal("expected empty array, got nil")
+				}
+				if len(resp) != 0 {
+					t.Fatalf("expected 0 items, got %d", len(resp))
+				}
+				trimmed := bytes.TrimSpace(body)
+				if string(trimmed) != "[]" {
+					t.Errorf("expected JSON [], got %s", string(trimmed))
+				}
+			},
+		},
+		{
+			name:          "Unauthenticated request returns 401",
+			authenticated: false,
+			setupMock: func() *mockURLService {
+				return &mockURLService{}
+			},
+			expectedStatus: http.StatusUnauthorized,
+			verifyBody: func(t *testing.T, body []byte) {
+				var errResp map[string]string
+				if err := json.Unmarshal(body, &errResp); err != nil {
+					t.Fatalf("could not unmarshal error response: %v", err)
+				}
+				if errResp["error"] != "Unauthorized" {
+					t.Errorf("expected error 'Unauthorized', got %v", errResp["error"])
+				}
+			},
+		},
+		{
+			name:          "Service error returns 500",
+			authenticated: true,
+			setupMock: func() *mockURLService {
+				return &mockURLService{
+					GetURLsByUserIDFunc: func(ctx context.Context, userID uuid.UUID) ([]service.UserURL, error) {
+						return nil, errors.New("db error")
+					},
+				}
+			},
+			expectedStatus: http.StatusInternalServerError,
+			verifyBody:     nil,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			svc := tt.setupMock()
+			handler := api.NewURLHandler(svc, logger, "http://closelinkit.test")
+
+			req := httptest.NewRequest(http.MethodGet, "/api/v1/urls", nil)
+			if tt.authenticated {
+				ctx := service.ContextWithUserID(req.Context(), testUserID)
+				req = req.WithContext(ctx)
+			}
+
+			w := httptest.NewRecorder()
+			handler.HandlerGetUserURLs(w, req)
+
+			if w.Code != tt.expectedStatus {
+				t.Errorf("expected status %d, got %d", tt.expectedStatus, w.Code)
+			}
+
+			if tt.verifyBody != nil {
+				tt.verifyBody(t, w.Body.Bytes())
 			}
 		})
 	}

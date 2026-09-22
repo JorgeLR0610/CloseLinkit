@@ -4,17 +4,20 @@ import (
 	"context"
 	"errors"
 	"testing"
+	"time"
 
 	"github.com/JorgeLR0610/CloseLinkit/internal/repository"
 	"github.com/JorgeLR0610/CloseLinkit/internal/service"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgconn"
+	"github.com/jackc/pgx/v5/pgtype"
 )
 
 // Mock for URLRepository
 type mockURLRepository struct {
-	CreateURLFunc  func(ctx context.Context, arg repository.CreateURLParams) (string, error)
-	createURLCalls int
+	CreateURLFunc       func(ctx context.Context, arg repository.CreateURLParams) (string, error)
+	GetURLsByUserIDFunc func(ctx context.Context, userID pgtype.UUID) ([]repository.GetURLsByUserIDRow, error)
+	createURLCalls      int
 }
 
 func (m *mockURLRepository) CreateURL(ctx context.Context, arg repository.CreateURLParams) (string, error) {
@@ -35,6 +38,13 @@ func (m *mockURLRepository) GetURLStats(ctx context.Context, shortCode string) (
 
 func (m *mockURLRepository) IncrementClickCount(ctx context.Context, shortCode string) error {
 	return nil
+}
+
+func (m *mockURLRepository) GetURLsByUserID(ctx context.Context, userID pgtype.UUID) ([]repository.GetURLsByUserIDRow, error) {
+	if m.GetURLsByUserIDFunc != nil {
+		return m.GetURLsByUserIDFunc(ctx, userID)
+	}
+	return nil, nil
 }
 
 // Mock for ShortCodeGenerator
@@ -267,6 +277,95 @@ func TestURLService_CreateShortCode_WithAuthenticatedUser(t *testing.T) {
 
 		if capturedArg.UserID.Valid {
 			t.Error("expected UserID.Valid to be false for anonymous shorten")
+		}
+	})
+}
+
+func TestURLService_GetURLsByUserID(t *testing.T) {
+	generator := &mockShortCodeGenerator{}
+	testUserID := uuid.MustParse("550e8400-e29b-41d4-a716-446655440000")
+	now := time.Now().Truncate(time.Second)
+
+	t.Run("successful retrieval of user URLs", func(t *testing.T) {
+		repo := &mockURLRepository{
+			GetURLsByUserIDFunc: func(ctx context.Context, userID pgtype.UUID) ([]repository.GetURLsByUserIDRow, error) {
+				if !userID.Valid || userID.Bytes != testUserID {
+					t.Fatalf("expected userID %v, got %v", testUserID, userID.Bytes)
+				}
+				return []repository.GetURLsByUserIDRow{
+					{
+						OriginalUrl: "https://example.com/one",
+						ShortCode:   "code111",
+						CreatedAt:   pgtype.Timestamptz{Time: now, Valid: true},
+						ClickCount:  5,
+					},
+					{
+						OriginalUrl: "https://example.com/two",
+						ShortCode:   "code222",
+						CreatedAt:   pgtype.Timestamptz{Time: now.Add(-time.Hour), Valid: true},
+						ClickCount:  0,
+					},
+				}, nil
+			},
+		}
+
+		srv := service.NewURLService(repo, generator)
+		urls, err := srv.GetURLsByUserID(context.Background(), testUserID)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+
+		if len(urls) != 2 {
+			t.Fatalf("expected 2 URLs, got %d", len(urls))
+		}
+
+		if urls[0].OriginalURL != "https://example.com/one" || urls[0].ShortCode != "code111" || urls[0].ClickCount != 5 {
+			t.Errorf("unexpected first item: %+v", urls[0])
+		}
+		if urls[1].OriginalURL != "https://example.com/two" || urls[1].ShortCode != "code222" || urls[1].ClickCount != 0 {
+			t.Errorf("unexpected second item: %+v", urls[1])
+		}
+	})
+
+	t.Run("returns empty slice when user has no URLs", func(t *testing.T) {
+		repo := &mockURLRepository{
+			GetURLsByUserIDFunc: func(ctx context.Context, userID pgtype.UUID) ([]repository.GetURLsByUserIDRow, error) {
+				return []repository.GetURLsByUserIDRow{}, nil
+			},
+		}
+
+		srv := service.NewURLService(repo, generator)
+		urls, err := srv.GetURLsByUserID(context.Background(), testUserID)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+
+		if urls == nil {
+			t.Fatal("expected non-nil empty slice, got nil")
+		}
+		if len(urls) != 0 {
+			t.Fatalf("expected 0 URLs, got %d", len(urls))
+		}
+	})
+
+	t.Run("returns error on repository failure", func(t *testing.T) {
+		dbErr := errors.New("database connection failed")
+		repo := &mockURLRepository{
+			GetURLsByUserIDFunc: func(ctx context.Context, userID pgtype.UUID) ([]repository.GetURLsByUserIDRow, error) {
+				return nil, dbErr
+			},
+		}
+
+		srv := service.NewURLService(repo, generator)
+		urls, err := srv.GetURLsByUserID(context.Background(), testUserID)
+		if err == nil {
+			t.Fatal("expected error, got nil")
+		}
+		if !errors.Is(err, dbErr) {
+			t.Errorf("expected wrapped dbErr, got %v", err)
+		}
+		if urls != nil {
+			t.Errorf("expected nil result on error, got %+v", urls)
 		}
 	})
 }

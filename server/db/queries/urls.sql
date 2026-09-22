@@ -19,7 +19,7 @@ SET click_count = click_count + 1
 WHERE short_code = $1;
 
 -- name: GetURLsByUserID :many
-SELECT *
+SELECT original_url, short_code, created_at, click_count
 FROM urls
 WHERE user_id = $1
 ORDER BY created_at DESC;

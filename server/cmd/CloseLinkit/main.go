@@ -123,6 +123,15 @@ func main() {
 	)
 
 	mux.Handle(
+		"GET /api/v1/urls",
+		middleware.RequestLogging(logger)(
+			middleware.RequireAuth(authSvc, logger)(
+				http.HandlerFunc(urlsHandler.HandlerGetUserURLs),
+			),
+		),
+	)
+
+	mux.Handle(
 		"GET /{shortCode}",
 		middleware.RequestLogging(logger)(
 			http.HandlerFunc(urlsHandler.HandlerResolveShortURL),
