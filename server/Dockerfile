@@ -14,7 +14,7 @@ COPY . .
 
 RUN go build -o server ./cmd/CloseLinkit
 
-FROM alpine:3.24.1
+FROM alpine:3.24.2
 
 RUN adduser -D appuser
 
