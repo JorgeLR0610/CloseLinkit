@@ -298,6 +298,11 @@ components:
           type: string
           format: uri
           example: http://closelinkit.test/abcdefg
+        expires_at:
+          type: string
+          format: date-time
+          nullable: true
+          example: 2026-10-03T12:00:00Z
     GetURLStatsResponse:
       type: object
       properties:

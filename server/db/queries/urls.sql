@@ -1,7 +1,7 @@
 -- name: CreateURL :one
 INSERT INTO urls (original_url, short_code, user_id, expires_at)
 VALUES ($1, $2, $3, $4)
-RETURNING short_code;
+RETURNING short_code, expires_at;
 
 -- name: GetURL :one
 SELECT original_url

@@ -103,6 +103,16 @@
     - Updated `service/urls_test.go` with `DeleteExpiredURLs` repository mock, verified 7-day expiration rule in `TestURLService_CreateShortCode_WithAuthenticatedUser`, and added comprehensive unit tests in `TestURLService_StartExpiredURLsCleanup` (initial execution, ticker periodic execution, error resilience, and graceful context cancellation).
     - `internal/service` test coverage reached 90.5% with 100% tests passing and zero race conditions.
 
+11. **Refactored `CreateURL` to return `expires_at` throughout the full service stack:**
+    - Updated `server/db/queries/urls.sql` to `RETURNING short_code, expires_at;`.
+    - Regenerated `server/internal/repository/urls.sql.go` via `make sqlc-generate` (`CreateURLRow`).
+    - Updated `URLRepository` interface, defined domain struct `CreatedURL{ ShortCode string, ExpiresAt *time.Time }`, and updated `URLService.CreateShortCode` mapping.
+    - Updated DTO `CreateURLResponse` in `server/internal/api/v1/types.go` (`ExpiresAt *time.Time json:"expires_at"`), and updated `HandlerCreateURL` in `server/internal/api/v1/urls.go`.
+    - Updated `server/docs/openapi.yaml` with `expires_at` (nullable RFC3339 date-time) in `CreateURLResponse` schema.
+    - Updated frontend TypeScript type `ShortenURLAPIResponse` in `frontend/src/types/url.ts` to include `expires_at: string | null`.
+    - Updated unit test suites in `server/internal/service/urls_test.go` and `server/internal/api/v1/urls_test.go`, as well as frontend test mock in `frontend/src/services/urls.test.ts`.
+    - Verified all backend tests (`go test -race -cover`), security scan (`govulncheck`), and frontend verification (`npm test`, `npm run lint`, `npm run build`).
+
 ---
 
 ## Active Task & Next Steps
@@ -110,9 +120,15 @@
 The backend JWT-based User Authentication milestones are fully completed.
 
 ### Next Steps:
-- Frontend Authentication Integration:
+#### Frontend Authentication Integration:
+1. **Set up Routing with `react-router`:**
+   - Configure routes in the frontend application (Main/Home for logged users `/dashboard`, Main/Home for anonymous users `/`, Login `/login`, Sign up `/signup`).
+2. **Build Authentication Pages:**
+   - Create the **Login page/component** (`/login`) with form inputs, validation, and glassmorphic styling aligned with the app's design system.
+   - Create the **Sign Up page/component** (`/signup`) with user registration form fields, error states, and responsive styling.
+3. **Integration & Navigation:**
+   - Add Login and Sign up buttons in both `Header` and `FooterCTA` to link to the new routes.
   - Auth context and token management (handling access tokens, refresh token rotation, in-memory/secure cookie storage).
-  - Register & Login UI components and forms.
-  - Authenticated user session state in frontend navigation.
-  - User Dashboard to view and manage user-created short links.
+4. **Testing:**
+   - Write comprehensive unit and integration tests using Vitest and React Testing Library for the new authentication pages and routes, maintaining the established 100% test passing baseline.
 

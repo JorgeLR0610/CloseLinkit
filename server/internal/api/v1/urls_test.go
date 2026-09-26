@@ -21,17 +21,17 @@ import (
 
 // mockURLService implements api.URLServicer
 type mockURLService struct {
-	CreateShortCodeFunc  func(ctx context.Context, originalURL string) (string, error)
+	CreateShortCodeFunc  func(ctx context.Context, originalURL string) (service.CreatedURL, error)
 	ResolveShortCodeFunc func(ctx context.Context, shortCode string) (string, error)
 	GetURLStatsFunc      func(ctx context.Context, shortCode string) (repository.GetURLStatsRow, error)
 	GetURLsByUserIDFunc  func(ctx context.Context, userID uuid.UUID) ([]service.UserURL, error)
 }
 
-func (m *mockURLService) CreateShortCode(ctx context.Context, originalURL string) (string, error) {
+func (m *mockURLService) CreateShortCode(ctx context.Context, originalURL string) (service.CreatedURL, error) {
 	if m.CreateShortCodeFunc != nil {
 		return m.CreateShortCodeFunc(ctx, originalURL)
 	}
-	return "", nil
+	return service.CreatedURL{}, nil
 }
 
 func (m *mockURLService) ResolveShortCode(ctx context.Context, shortCode string) (string, error) {
@@ -58,27 +58,48 @@ func (m *mockURLService) GetURLsByUserID(ctx context.Context, userID uuid.UUID) 
 func TestURLHandler_HandlerCreateURL(t *testing.T) {
 	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
 
+	fixedExp := time.Date(2026, 10, 3, 12, 0, 0, 0, time.UTC)
 	tests := []struct {
-		name           string
-		requestBody    string
-		setupMock      func() *mockURLService
-		expectedStatus int
+		name              string
+		requestBody       string
+		setupMock         func() *mockURLService
+		expectedStatus    int
+		expectedExpiresAt *time.Time
+		expectedShortURL  string
 	}{
 		{
-			name:        "Valid short code",
+			name:        "Valid short code with expiration",
 			requestBody: `{"url":"https://example.com"}`,
 			setupMock: func() *mockURLService {
 				return &mockURLService{
-					CreateShortCodeFunc: func(ctx context.Context, originalURL string) (string, error) {
-						var uuid pgtype.UUID
-						if err := uuid.Scan("123e4567-e89b-12d3-a456-426614174000"); err != nil {
-							t.Fatalf("could not write response: %v", err)
-						}
-						return "abcdef", nil
+					CreateShortCodeFunc: func(ctx context.Context, originalURL string) (service.CreatedURL, error) {
+						return service.CreatedURL{
+							ShortCode: "abcdef",
+							ExpiresAt: &fixedExp,
+						}, nil
 					},
 				}
 			},
-			expectedStatus: http.StatusCreated,
+			expectedStatus:    http.StatusCreated,
+			expectedExpiresAt: &fixedExp,
+			expectedShortURL:  "http://closelinkit.test/abcdef",
+		},
+		{
+			name:        "Valid short code without expiration",
+			requestBody: `{"url":"https://example.com"}`,
+			setupMock: func() *mockURLService {
+				return &mockURLService{
+					CreateShortCodeFunc: func(ctx context.Context, originalURL string) (service.CreatedURL, error) {
+						return service.CreatedURL{
+							ShortCode: "abcdef_noexp",
+							ExpiresAt: nil,
+						}, nil
+					},
+				}
+			},
+			expectedStatus:    http.StatusCreated,
+			expectedExpiresAt: nil,
+			expectedShortURL:  "http://closelinkit.test/abcdef_noexp",
 		},
 		{
 			name:        "Invalid JSON",
@@ -101,8 +122,8 @@ func TestURLHandler_HandlerCreateURL(t *testing.T) {
 			requestBody: `{"url":"://invalid"}`,
 			setupMock: func() *mockURLService {
 				return &mockURLService{
-					CreateShortCodeFunc: func(ctx context.Context, originalURL string) (string, error) {
-						return "", service.ErrInvalidURL
+					CreateShortCodeFunc: func(ctx context.Context, originalURL string) (service.CreatedURL, error) {
+						return service.CreatedURL{}, service.ErrInvalidURL
 					},
 				}
 			},
@@ -113,8 +134,8 @@ func TestURLHandler_HandlerCreateURL(t *testing.T) {
 			requestBody: `{"url":"https://example.com"}`,
 			setupMock: func() *mockURLService {
 				return &mockURLService{
-					CreateShortCodeFunc: func(ctx context.Context, originalURL string) (string, error) {
-						return "", errors.New("db connection lost")
+					CreateShortCodeFunc: func(ctx context.Context, originalURL string) (service.CreatedURL, error) {
+						return service.CreatedURL{}, errors.New("db connection lost")
 					},
 				}
 			},
@@ -146,8 +167,17 @@ func TestURLHandler_HandlerCreateURL(t *testing.T) {
 				if err := json.Unmarshal(w.Body.Bytes(), &resp); err != nil {
 					t.Fatalf("could not unmarshal response: %v", err)
 				}
-				if resp.ShortURL != "http://closelinkit.test/abcdef" {
-					t.Errorf("expected ShortURL to be 'http://closelinkit.test/abcdef', got: %s", resp.ShortURL)
+				if resp.ShortURL != tt.expectedShortURL {
+					t.Errorf("expected ShortURL to be '%s', got: %s", tt.expectedShortURL, resp.ShortURL)
+				}
+				if tt.expectedExpiresAt != nil {
+					if resp.ExpiresAt == nil || !resp.ExpiresAt.Equal(*tt.expectedExpiresAt) {
+						t.Errorf("expected ExpiresAt %v, got %v", tt.expectedExpiresAt, resp.ExpiresAt)
+					}
+				} else {
+					if resp.ExpiresAt != nil {
+						t.Errorf("expected nil ExpiresAt, got %v", resp.ExpiresAt)
+					}
 				}
 			}
 		})

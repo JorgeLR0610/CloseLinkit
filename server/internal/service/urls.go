@@ -18,12 +18,17 @@ import (
 )
 
 type URLRepository interface {
-	CreateURL(ctx context.Context, arg repository.CreateURLParams) (string, error)
+	CreateURL(ctx context.Context, arg repository.CreateURLParams) (repository.CreateURLRow, error)
 	GetURL(ctx context.Context, shortCode string) (string, error)
 	GetURLStats(ctx context.Context, shortCode string) (repository.GetURLStatsRow, error)
 	IncrementClickCount(ctx context.Context, shortCode string) error
 	GetURLsByUserID(ctx context.Context, userID pgtype.UUID) ([]repository.GetURLsByUserIDRow, error)
 	DeleteExpiredURLs(ctx context.Context) error
+}
+
+type CreatedURL struct {
+	ShortCode string
+	ExpiresAt *time.Time
 }
 
 type UserURL struct {
@@ -85,18 +90,18 @@ func isValidHost(hostname string) bool {
 	return true
 }
 
-func (s *URLService) CreateShortCode(ctx context.Context, originalURL string) (string, error) {
+func (s *URLService) CreateShortCode(ctx context.Context, originalURL string) (CreatedURL, error) {
 	parsedURL, err := url.Parse(strings.TrimSpace(originalURL))
 	if err != nil {
-		return "", ErrInvalidURL
+		return CreatedURL{}, ErrInvalidURL
 	}
 
 	if parsedURL.Scheme != "http" && parsedURL.Scheme != "https" {
-		return "", ErrInvalidURLScheme
+		return CreatedURL{}, ErrInvalidURLScheme
 	}
 
 	if !isValidHost(parsedURL.Hostname()) {
-		return "", ErrNoHost
+		return CreatedURL{}, ErrNoHost
 	}
 
 	var userUUID pgtype.UUID
@@ -116,7 +121,7 @@ func (s *URLService) CreateShortCode(ctx context.Context, originalURL string) (s
 	for range maxRetries {
 		shortCode, err := s.generator.GenerateShortCode()
 		if err != nil {
-			return "", fmt.Errorf("error generating short code: %w", err)
+			return CreatedURL{}, fmt.Errorf("error generating short code: %w", err)
 		}
 
 		createdURL, err := s.repo.CreateURL(ctx, repository.CreateURLParams{
@@ -131,12 +136,20 @@ func (s *URLService) CreateShortCode(ctx context.Context, originalURL string) (s
 					continue
 				}
 			}
-			return "", fmt.Errorf("could not insert URL to database: %w", err)
+			return CreatedURL{}, fmt.Errorf("could not insert URL to database: %w", err)
 		}
 
-		return createdURL, nil
+		var exp *time.Time
+		if createdURL.ExpiresAt.Valid {
+			exp = &createdURL.ExpiresAt.Time
+		}
+
+		return CreatedURL{
+			ShortCode: createdURL.ShortCode,
+			ExpiresAt: exp,
+		}, nil
 	}
-	return "", ErrCouldNotGenerateUniqueShortCode
+	return CreatedURL{}, ErrCouldNotGenerateUniqueShortCode
 }
 
 func (s *URLService) ResolveShortCode(ctx context.Context, shortCode string) (string, error) {

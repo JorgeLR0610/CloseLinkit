@@ -7,7 +7,8 @@ import (
 )
 
 type CreateURLResponse struct {
-	ShortURL string `json:"short_url"`
+	ShortURL  string     `json:"short_url"`
+	ExpiresAt *time.Time `json:"expires_at"`
 }
 
 type GetURLStatsResponse struct {

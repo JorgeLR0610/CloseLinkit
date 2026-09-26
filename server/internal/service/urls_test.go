@@ -19,7 +19,7 @@ import (
 
 // Mock for URLRepository
 type mockURLRepository struct {
-	CreateURLFunc           func(ctx context.Context, arg repository.CreateURLParams) (string, error)
+	CreateURLFunc           func(ctx context.Context, arg repository.CreateURLParams) (repository.CreateURLRow, error)
 	GetURLFunc              func(ctx context.Context, shortCode string) (string, error)
 	GetURLStatsFunc         func(ctx context.Context, shortCode string) (repository.GetURLStatsRow, error)
 	IncrementClickCountFunc func(ctx context.Context, shortCode string) error
@@ -30,12 +30,12 @@ type mockURLRepository struct {
 	deleteExpiredURLsCalls  int
 }
 
-func (m *mockURLRepository) CreateURL(ctx context.Context, arg repository.CreateURLParams) (string, error) {
+func (m *mockURLRepository) CreateURL(ctx context.Context, arg repository.CreateURLParams) (repository.CreateURLRow, error) {
 	m.createURLCalls++
 	if m.CreateURLFunc != nil {
 		return m.CreateURLFunc(ctx, arg)
 	}
-	return "", nil
+	return repository.CreateURLRow{}, nil
 }
 
 func (m *mockURLRepository) GetURL(ctx context.Context, shortCode string) (string, error) {
@@ -109,8 +109,11 @@ func TestURLService_CreateShortCode(t *testing.T) {
 			},
 			setupRepo: func() *mockURLRepository {
 				return &mockURLRepository{
-					CreateURLFunc: func(ctx context.Context, arg repository.CreateURLParams) (string, error) {
-						return arg.ShortCode, nil
+					CreateURLFunc: func(ctx context.Context, arg repository.CreateURLParams) (repository.CreateURLRow, error) {
+						return repository.CreateURLRow{
+							ShortCode: arg.ShortCode,
+							ExpiresAt: arg.ExpiresAt,
+						}, nil
 					},
 				}
 			},
@@ -159,15 +162,18 @@ func TestURLService_CreateShortCode(t *testing.T) {
 			setupRepo: func() *mockURLRepository {
 				callCount := 0
 				return &mockURLRepository{
-					CreateURLFunc: func(ctx context.Context, arg repository.CreateURLParams) (string, error) {
+					CreateURLFunc: func(ctx context.Context, arg repository.CreateURLParams) (repository.CreateURLRow, error) {
 						callCount++
 						if callCount == 1 {
-							return "", &pgconn.PgError{
+							return repository.CreateURLRow{}, &pgconn.PgError{
 								Code:           "23505",
 								ConstraintName: "urls_short_code_unique",
 							}
 						}
-						return arg.ShortCode, nil
+						return repository.CreateURLRow{
+							ShortCode: arg.ShortCode,
+							ExpiresAt: arg.ExpiresAt,
+						}, nil
 					},
 				}
 			},
@@ -187,8 +193,8 @@ func TestURLService_CreateShortCode(t *testing.T) {
 			},
 			setupRepo: func() *mockURLRepository {
 				return &mockURLRepository{
-					CreateURLFunc: func(ctx context.Context, arg repository.CreateURLParams) (string, error) {
-						return "", &pgconn.PgError{
+					CreateURLFunc: func(ctx context.Context, arg repository.CreateURLParams) (repository.CreateURLRow, error) {
+						return repository.CreateURLRow{}, &pgconn.PgError{
 							Code:           "23505",
 							ConstraintName: "urls_short_code_unique",
 						}
@@ -210,8 +216,8 @@ func TestURLService_CreateShortCode(t *testing.T) {
 			},
 			setupRepo: func() *mockURLRepository {
 				return &mockURLRepository{
-					CreateURLFunc: func(ctx context.Context, arg repository.CreateURLParams) (string, error) {
-						return "", errors.New("connection failed")
+					CreateURLFunc: func(ctx context.Context, arg repository.CreateURLParams) (repository.CreateURLRow, error) {
+						return repository.CreateURLRow{}, errors.New("connection failed")
 					},
 				}
 			},
@@ -242,8 +248,8 @@ func TestURLService_CreateShortCode(t *testing.T) {
 				if err != nil {
 					t.Fatalf("did not expect error, got %v", err)
 				}
-				if result != tt.expectedShortCode {
-					t.Errorf("expected shortCode %s, got %s", tt.expectedShortCode, result)
+				if result.ShortCode != tt.expectedShortCode {
+					t.Errorf("expected shortCode %s, got %s", tt.expectedShortCode, result.ShortCode)
 				}
 			}
 
@@ -265,18 +271,28 @@ func TestURLService_CreateShortCode_WithAuthenticatedUser(t *testing.T) {
 	t.Run("authenticated context sets user_id", func(t *testing.T) {
 		var capturedArg repository.CreateURLParams
 		repo := &mockURLRepository{
-			CreateURLFunc: func(ctx context.Context, arg repository.CreateURLParams) (string, error) {
+			CreateURLFunc: func(ctx context.Context, arg repository.CreateURLParams) (repository.CreateURLRow, error) {
 				capturedArg = arg
-				return arg.ShortCode, nil
+				return repository.CreateURLRow{
+					ShortCode: arg.ShortCode,
+					ExpiresAt: arg.ExpiresAt,
+				}, nil
 			},
 		}
 
 		srv := service.NewURLService(repo, generator)
 		ctx := service.ContextWithUserID(context.Background(), testUserID)
 
-		_, err := srv.CreateShortCode(ctx, "https://example.com")
+		result, err := srv.CreateShortCode(ctx, "https://example.com")
 		if err != nil {
 			t.Fatalf("unexpected error: %v", err)
+		}
+
+		if result.ShortCode != "abcDEFg" {
+			t.Errorf("expected ShortCode abcDEFg, got %s", result.ShortCode)
+		}
+		if result.ExpiresAt != nil {
+			t.Errorf("expected nil ExpiresAt for authenticated user, got %v", result.ExpiresAt)
 		}
 
 		if !capturedArg.UserID.Valid {
@@ -293,17 +309,27 @@ func TestURLService_CreateShortCode_WithAuthenticatedUser(t *testing.T) {
 	t.Run("unauthenticated context leaves user_id invalid (null)", func(t *testing.T) {
 		var capturedArg repository.CreateURLParams
 		repo := &mockURLRepository{
-			CreateURLFunc: func(ctx context.Context, arg repository.CreateURLParams) (string, error) {
+			CreateURLFunc: func(ctx context.Context, arg repository.CreateURLParams) (repository.CreateURLRow, error) {
 				capturedArg = arg
-				return arg.ShortCode, nil
+				return repository.CreateURLRow{
+					ShortCode: arg.ShortCode,
+					ExpiresAt: arg.ExpiresAt,
+				}, nil
 			},
 		}
 
 		srv := service.NewURLService(repo, generator)
 
-		_, err := srv.CreateShortCode(context.Background(), "https://example.com")
+		result, err := srv.CreateShortCode(context.Background(), "https://example.com")
 		if err != nil {
 			t.Fatalf("unexpected error: %v", err)
+		}
+
+		if result.ShortCode != "abcDEFg" {
+			t.Errorf("expected ShortCode abcDEFg, got %s", result.ShortCode)
+		}
+		if result.ExpiresAt == nil {
+			t.Fatal("expected non-nil ExpiresAt for anonymous user")
 		}
 
 		if capturedArg.UserID.Valid {
@@ -567,8 +593,11 @@ func TestURLService_CreateShortCode_HostValidation(t *testing.T) {
 		},
 	}
 	repo := &mockURLRepository{
-		CreateURLFunc: func(ctx context.Context, arg repository.CreateURLParams) (string, error) {
-			return arg.ShortCode, nil
+		CreateURLFunc: func(ctx context.Context, arg repository.CreateURLParams) (repository.CreateURLRow, error) {
+			return repository.CreateURLRow{
+				ShortCode: arg.ShortCode,
+				ExpiresAt: arg.ExpiresAt,
+			}, nil
 		},
 	}
 	srv := service.NewURLService(repo, generator)
