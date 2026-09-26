@@ -307,6 +307,13 @@ func UserIDFromContext(ctx context.Context) (uuid.UUID, bool) {
 }
 
 func (s *AuthService) StartRefreshTokenCleanup(ctx context.Context, interval time.Duration, logger *slog.Logger) {
+	if logger == nil {
+		logger = slog.Default()
+	}
+	if interval <= 0 {
+		interval = 1 * time.Hour
+	}
+
 	ticker := time.NewTicker(interval)
 	defer ticker.Stop()
 

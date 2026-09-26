@@ -3,7 +3,10 @@ package service_test
 import (
 	"context"
 	"errors"
+	"io"
+	"log/slog"
 	"strings"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -499,3 +502,281 @@ func TestAuthService_ValidateAccessToken(t *testing.T) {
 		t.Errorf("claims do not match expected values")
 	}
 }
+
+func TestAuthService_StartRefreshTokenCleanup(t *testing.T) {
+	cfg := defaultTestAuthConfig()
+	testLogger := slog.New(slog.NewTextHandler(io.Discard, nil))
+
+	t.Run("initial cleanup runs and context cancellation terminates", func(t *testing.T) {
+		var callCount atomic.Int32
+		repo := &mockAuthRepository{
+			DeleteExpiredTokensFunc: func(ctx context.Context) error {
+				callCount.Add(1)
+				return nil
+			},
+		}
+
+		srv := service.NewAuthService(repo, cfg)
+		ctx, cancel := context.WithCancel(context.Background())
+
+		done := make(chan struct{})
+		go func() {
+			srv.StartRefreshTokenCleanup(ctx, 1*time.Hour, testLogger)
+			close(done)
+		}()
+
+		// Wait for initial cleanup to be invoked
+		for range 50 {
+			if callCount.Load() >= 1 {
+				break
+			}
+			time.Sleep(2 * time.Millisecond)
+		}
+
+		if callCount.Load() < 1 {
+			t.Errorf("expected at least 1 call for initial cleanup, got %d", callCount.Load())
+		}
+
+		cancel()
+
+		select {
+		case <-done:
+			// Success, exited after cancellation
+		case <-time.After(1 * time.Second):
+			t.Fatal("StartRefreshTokenCleanup did not exit upon context cancellation")
+		}
+	})
+
+	t.Run("periodic cleanup runs repeatedly on ticker", func(t *testing.T) {
+		var callCount atomic.Int32
+		repo := &mockAuthRepository{
+			DeleteExpiredTokensFunc: func(ctx context.Context) error {
+				callCount.Add(1)
+				return nil
+			},
+		}
+
+		srv := service.NewAuthService(repo, cfg)
+		ctx, cancel := context.WithCancel(context.Background())
+		defer cancel()
+
+		done := make(chan struct{})
+		go func() {
+			srv.StartRefreshTokenCleanup(ctx, 5*time.Millisecond, testLogger)
+			close(done)
+		}()
+
+		// Wait until ticker fires multiple times (initial + at least 2 ticks)
+		for range 100 {
+			if callCount.Load() >= 3 {
+				break
+			}
+			time.Sleep(5 * time.Millisecond)
+		}
+
+		if count := callCount.Load(); count < 3 {
+			t.Errorf("expected at least 3 calls, got %d", count)
+		}
+
+		cancel()
+
+		select {
+		case <-done:
+		case <-time.After(1 * time.Second):
+			t.Fatal("StartRefreshTokenCleanup did not exit upon context cancellation")
+		}
+	})
+
+	t.Run("handles error from DeleteExpiredTokens gracefully without panic", func(t *testing.T) {
+		var callCount atomic.Int32
+		repo := &mockAuthRepository{
+			DeleteExpiredTokensFunc: func(ctx context.Context) error {
+				callCount.Add(1)
+				return errors.New("database unavailable")
+			},
+		}
+
+		srv := service.NewAuthService(repo, cfg)
+		ctx, cancel := context.WithCancel(context.Background())
+
+		done := make(chan struct{})
+		go func() {
+			srv.StartRefreshTokenCleanup(ctx, 5*time.Millisecond, testLogger)
+			close(done)
+		}()
+
+		// Wait for both initial and periodic calls with error
+		for range 100 {
+			if callCount.Load() >= 2 {
+				break
+			}
+			time.Sleep(5 * time.Millisecond)
+		}
+
+		if count := callCount.Load(); count < 2 {
+			t.Errorf("expected at least 2 calls despite errors, got %d", count)
+		}
+
+		cancel()
+
+		select {
+		case <-done:
+		case <-time.After(1 * time.Second):
+			t.Fatal("StartRefreshTokenCleanup did not exit upon cancellation")
+		}
+	})
+
+	t.Run("exits immediately when context is already canceled", func(t *testing.T) {
+		repo := &mockAuthRepository{
+			DeleteExpiredTokensFunc: func(ctx context.Context) error {
+				return ctx.Err()
+			},
+		}
+
+		srv := service.NewAuthService(repo, cfg)
+		ctx, cancel := context.WithCancel(context.Background())
+		cancel()
+
+		done := make(chan struct{})
+		go func() {
+			srv.StartRefreshTokenCleanup(ctx, 1*time.Hour, testLogger)
+			close(done)
+		}()
+
+		select {
+		case <-done:
+		case <-time.After(500 * time.Millisecond):
+			t.Fatal("StartRefreshTokenCleanup did not exit immediately with pre-canceled context")
+		}
+	})
+
+	t.Run("resilient with nil logger and non-positive interval", func(t *testing.T) {
+		repo := &mockAuthRepository{
+			DeleteExpiredTokensFunc: func(ctx context.Context) error {
+				return errors.New("db error")
+			},
+		}
+
+		srv := service.NewAuthService(repo, cfg)
+		ctx, cancel := context.WithCancel(context.Background())
+
+		done := make(chan struct{})
+		go func() {
+			// interval <= 0 and logger == nil must not panic
+			srv.StartRefreshTokenCleanup(ctx, 0, nil)
+			close(done)
+		}()
+
+		time.Sleep(10 * time.Millisecond)
+		cancel()
+
+		select {
+		case <-done:
+		case <-time.After(1 * time.Second):
+			t.Fatal("StartRefreshTokenCleanup did not exit")
+		}
+	})
+}
+
+func TestNewAuthService_Defaults(t *testing.T) {
+	testSecret := []byte("secret-key-12345678901234567890")
+	// Pass config with zero TTLs and zero Argon2Params
+	srv := service.NewAuthService(&mockAuthRepository{}, service.AuthConfig{
+		JWTSecret: testSecret,
+	})
+
+	testUserID := uuid.New()
+	tokenString, err := security.GenerateAccessToken(testSecret, testUserID, "test@example.com", 15*time.Minute)
+	if err != nil {
+		t.Fatalf("unexpected error generating token: %v", err)
+	}
+
+	claims, err := srv.ValidateAccessToken(tokenString)
+	if err != nil {
+		t.Fatalf("unexpected error validating token: %v", err)
+	}
+	if claims.Email != "test@example.com" {
+		t.Errorf("expected email test@example.com, got %s", claims.Email)
+	}
+
+	// Also verify that a service with empty secret rejects validation
+	srvEmptySecret := service.NewAuthService(&mockAuthRepository{}, service.AuthConfig{})
+	_, err = srvEmptySecret.ValidateAccessToken(tokenString)
+	if !errors.Is(err, security.ErrEmptySecretKey) {
+		t.Errorf("expected ErrEmptySecretKey, got %v", err)
+	}
+}
+
+func TestAuthService_RevokeAllUserSessions_Error(t *testing.T) {
+	cfg := defaultTestAuthConfig()
+	dbErr := errors.New("db connection lost")
+	repo := &mockAuthRepository{
+		RevokeAllUserRefreshTokensFunc: func(ctx context.Context, id pgtype.UUID) error {
+			return dbErr
+		},
+	}
+
+	srv := service.NewAuthService(repo, cfg)
+	err := srv.RevokeAllUserSessions(context.Background(), uuid.New())
+	if err == nil {
+		t.Fatal("expected error, got nil")
+	}
+	if !errors.Is(err, dbErr) {
+		t.Errorf("expected wrapped dbErr, got %v", err)
+	}
+}
+
+func TestAuthService_Logout_Error(t *testing.T) {
+	cfg := defaultTestAuthConfig()
+	dbErr := errors.New("db error")
+	repo := &mockAuthRepository{
+		RevokeRefreshTokenFunc: func(ctx context.Context, tokenHash string) error {
+			return dbErr
+		},
+	}
+
+	srv := service.NewAuthService(repo, cfg)
+	err := srv.Logout(context.Background(), "some-token")
+	if err == nil {
+		t.Fatal("expected error, got nil")
+	}
+	if !errors.Is(err, dbErr) {
+		t.Errorf("expected wrapped dbErr, got %v", err)
+	}
+}
+
+func TestAuthService_Register_EmailVerifiedMapping(t *testing.T) {
+	cfg := defaultTestAuthConfig()
+	testUUID := uuid.New()
+	verifiedAt := time.Now().Truncate(time.Second)
+
+	repo := &mockAuthRepository{
+		GetUserByEmailFunc: func(ctx context.Context, lower string) (repository.User, error) {
+			return repository.User{}, pgx.ErrNoRows
+		},
+		CreateUserFunc: func(ctx context.Context, arg repository.CreateUserParams) (repository.User, error) {
+			return repository.User{
+				ID:              pgtype.UUID{Bytes: testUUID, Valid: true},
+				Email:           arg.Email,
+				HashedPassword:  arg.HashedPassword,
+				EmailVerifiedAt: pgtype.Timestamptz{Time: verifiedAt, Valid: true},
+				CreatedAt:       pgtype.Timestamptz{Time: verifiedAt, Valid: true},
+				UpdatedAt:       pgtype.Timestamptz{Time: verifiedAt, Valid: true},
+			}, nil
+		},
+	}
+
+	srv := service.NewAuthService(repo, cfg)
+	res, err := srv.Register(context.Background(), "verified@example.com", "password123")
+	if err != nil {
+		t.Fatalf("unexpected error registering user: %v", err)
+	}
+
+	if res.EmailVerifiedAt == nil {
+		t.Fatal("expected EmailVerifiedAt to be non-nil")
+	}
+	if !res.EmailVerifiedAt.Equal(verifiedAt) {
+		t.Errorf("expected EmailVerifiedAt %v, got %v", verifiedAt, *res.EmailVerifiedAt)
+	}
+}
+

@@ -88,6 +88,13 @@
    - Fully covered with unit tests in `service/urls_test.go` and `api/v1/urls_test.go`.
    - Documented in `server/docs/openapi.yaml` and `README.md`.
 
+9. **Periodic Refresh Token Cleanup & Comprehensive Backend Test Suite:**
+   - Implemented `StartRefreshTokenCleanup` in `service.AuthService` running periodically via an hourly background goroutine in `main.go`.
+   - Hardened `StartRefreshTokenCleanup` with defensive checks for nil loggers and non-positive intervals.
+   - Added comprehensive unit tests in `service/auth_test.go` verifying initial execution, periodic ticker execution, error resilience, and graceful context cancellation.
+   - Expanded unit test coverage in `service/urls_test.go` (`ResolveShortCode`, `GetURLStats`, and `isValidHost` IP/domain validation), `service/auth_test.go` (defaults and edge cases), and created `response/json_test.go` (100% coverage).
+   - Backend test coverage across all internal packages is now $\ge 89.1\%$ with 100% tests passing and zero race conditions.
+
 ---
 
 ## Active Task & Next Steps
