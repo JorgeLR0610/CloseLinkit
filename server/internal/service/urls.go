@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"log/slog"
 	"net"
 	"net/url"
 	"strings"
@@ -22,6 +23,7 @@ type URLRepository interface {
 	GetURLStats(ctx context.Context, shortCode string) (repository.GetURLStatsRow, error)
 	IncrementClickCount(ctx context.Context, shortCode string) error
 	GetURLsByUserID(ctx context.Context, userID pgtype.UUID) ([]repository.GetURLsByUserIDRow, error)
+	DeleteExpiredURLs(ctx context.Context) error
 }
 
 type UserURL struct {
@@ -98,8 +100,16 @@ func (s *URLService) CreateShortCode(ctx context.Context, originalURL string) (s
 	}
 
 	var userUUID pgtype.UUID
+	var expiresAt pgtype.Timestamptz
+
 	if userID, ok := UserIDFromContext(ctx); ok {
 		userUUID = pgtype.UUID{Bytes: userID, Valid: true}
+		expiresAt = pgtype.Timestamptz{Valid: false}
+	} else {
+		expiresAt = pgtype.Timestamptz{
+			Time:  time.Now().Add(7 * 24 * time.Hour),
+			Valid: true,
+		}
 	}
 
 	// Try to create and store short code, up to the defined number of attempts
@@ -113,6 +123,7 @@ func (s *URLService) CreateShortCode(ctx context.Context, originalURL string) (s
 			OriginalUrl: parsedURL.String(),
 			ShortCode:   shortCode,
 			UserID:      userUUID,
+			ExpiresAt:   expiresAt,
 		})
 		if err != nil {
 			if pgErr, ok := errors.AsType[*pgconn.PgError](err); ok {
@@ -175,4 +186,39 @@ func (s *URLService) GetURLsByUserID(ctx context.Context, userID uuid.UUID) ([]U
 	}
 
 	return result, nil
+}
+
+func (s *URLService) StartExpiredURLsCleanup(ctx context.Context, interval time.Duration, logger *slog.Logger) {
+	if logger == nil {
+		logger = slog.Default()
+	}
+	if interval <= 0 {
+		interval = 12 * time.Hour
+	}
+
+	ticker := time.NewTicker(interval)
+	defer ticker.Stop()
+
+	// Initial cleanup
+	if err := s.repo.DeleteExpiredURLs(ctx); err != nil && !errors.Is(err, context.Canceled) {
+		logger.Error(
+			"failed initial cleanup of expired URLs",
+			slog.Any("error", err),
+		)
+	}
+
+	// Following cleanups
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-ticker.C:
+			if err := s.repo.DeleteExpiredURLs(ctx); err != nil && !errors.Is(err, context.Canceled) {
+				logger.Error(
+					"failed periodic cleanup of expired URLs",
+					slog.Any("error", err),
+				)
+			}
+		}
+	}
 }

@@ -779,4 +779,3 @@ func TestAuthService_Register_EmailVerifiedMapping(t *testing.T) {
 		t.Errorf("expected EmailVerifiedAt %v, got %v", verifiedAt, *res.EmailVerifiedAt)
 	}
 }
-

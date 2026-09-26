@@ -24,6 +24,7 @@ type Url struct {
 	CreatedAt   pgtype.Timestamptz
 	ClickCount  int32
 	UserID      pgtype.UUID
+	ExpiresAt   pgtype.Timestamptz
 }
 
 type User struct {
