@@ -10,6 +10,7 @@ const server = setupServer(
     const body = (await request.json()) as { url: string };
     return HttpResponse.json({
       short_url: `http://localhost:8080/xyz9999`,
+      expires_at: "2026-10-03T12:00:00Z",
       original_url: body.url,
     });
   }),

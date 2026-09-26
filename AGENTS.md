@@ -79,6 +79,7 @@ Before considering a backend change complete:
 ```bash
 cd server
 go test ./...
+go fmt ./...
 ```
 
 For frontend changes:
@@ -86,6 +87,7 @@ For frontend changes:
 ```bash
 cd frontend
 npm test
+npm run format
 npm run lint
 npm run build
 ```

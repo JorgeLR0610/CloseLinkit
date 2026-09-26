@@ -9,6 +9,7 @@ export type ShortenURLResponse = {
 
 export type ShortenURLAPIResponse = {
   short_url: string;
+  expires_at: string | null;
 };
 
 export type GetURLStatsAPIResponse = {

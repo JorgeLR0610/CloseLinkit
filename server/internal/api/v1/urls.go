@@ -18,7 +18,7 @@ import (
 const InternalErrorMsg = "There was an error on our end. Please try again later"
 
 type URLServicer interface {
-	CreateShortCode(ctx context.Context, originalURL string) (string, error)
+	CreateShortCode(ctx context.Context, originalURL string) (service.CreatedURL, error)
 	ResolveShortCode(ctx context.Context, shortCode string) (string, error)
 	GetURLStats(ctx context.Context, shortCode string) (repository.GetURLStatsRow, error)
 	GetURLsByUserID(ctx context.Context, userID uuid.UUID) ([]service.UserURL, error)
@@ -61,7 +61,7 @@ func (h *URLHandler) HandlerCreateURL(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	shortCode, err := h.service.CreateShortCode(r.Context(), urlParams.OriginalURL)
+	createdURL, err := h.service.CreateShortCode(r.Context(), urlParams.OriginalURL)
 	if err != nil {
 		if errors.Is(err, service.ErrInvalidURLScheme) || errors.Is(err, service.ErrNoHost) || errors.Is(err, service.ErrInvalidURL) {
 			h.writeErrorLogged(w, http.StatusBadRequest, err.Error())
@@ -79,7 +79,8 @@ func (h *URLHandler) HandlerCreateURL(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if err := response.WriteJSON(w, http.StatusCreated, CreateURLResponse{
-		ShortURL: h.baseURL + "/" + shortCode,
+		ShortURL:  h.baseURL + "/" + createdURL.ShortCode,
+		ExpiresAt: createdURL.ExpiresAt,
 	}); err != nil {
 		h.logger.Error(
 			"could not send shortURL creation response",

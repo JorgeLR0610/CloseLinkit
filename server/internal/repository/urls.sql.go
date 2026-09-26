@@ -14,7 +14,7 @@ import (
 const createURL = `-- name: CreateURL :one
 INSERT INTO urls (original_url, short_code, user_id, expires_at)
 VALUES ($1, $2, $3, $4)
-RETURNING short_code
+RETURNING short_code, expires_at
 `
 
 type CreateURLParams struct {
@@ -24,16 +24,21 @@ type CreateURLParams struct {
 	ExpiresAt   pgtype.Timestamptz
 }
 
-func (q *Queries) CreateURL(ctx context.Context, arg CreateURLParams) (string, error) {
+type CreateURLRow struct {
+	ShortCode string
+	ExpiresAt pgtype.Timestamptz
+}
+
+func (q *Queries) CreateURL(ctx context.Context, arg CreateURLParams) (CreateURLRow, error) {
 	row := q.db.QueryRow(ctx, createURL,
 		arg.OriginalUrl,
 		arg.ShortCode,
 		arg.UserID,
 		arg.ExpiresAt,
 	)
-	var short_code string
-	err := row.Scan(&short_code)
-	return short_code, err
+	var i CreateURLRow
+	err := row.Scan(&i.ShortCode, &i.ExpiresAt)
+	return i, err
 }
 
 const deleteExpiredURLs = `-- name: DeleteExpiredURLs :exec
