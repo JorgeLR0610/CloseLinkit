@@ -3,6 +3,9 @@ package service_test
 import (
 	"context"
 	"errors"
+	"io"
+	"log/slog"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -18,11 +21,13 @@ import (
 type mockURLRepository struct {
 	CreateURLFunc           func(ctx context.Context, arg repository.CreateURLParams) (string, error)
 	GetURLFunc              func(ctx context.Context, shortCode string) (string, error)
-	GetURLStatsFunc          func(ctx context.Context, shortCode string) (repository.GetURLStatsRow, error)
+	GetURLStatsFunc         func(ctx context.Context, shortCode string) (repository.GetURLStatsRow, error)
 	IncrementClickCountFunc func(ctx context.Context, shortCode string) error
 	GetURLsByUserIDFunc     func(ctx context.Context, userID pgtype.UUID) ([]repository.GetURLsByUserIDRow, error)
+	DeleteExpiredURLsFunc   func(ctx context.Context) error
 	createURLCalls          int
 	incrementClickCalls     int
+	deleteExpiredURLsCalls  int
 }
 
 func (m *mockURLRepository) CreateURL(ctx context.Context, arg repository.CreateURLParams) (string, error) {
@@ -60,6 +65,14 @@ func (m *mockURLRepository) GetURLsByUserID(ctx context.Context, userID pgtype.U
 		return m.GetURLsByUserIDFunc(ctx, userID)
 	}
 	return nil, nil
+}
+
+func (m *mockURLRepository) DeleteExpiredURLs(ctx context.Context) error {
+	m.deleteExpiredURLsCalls++
+	if m.DeleteExpiredURLsFunc != nil {
+		return m.DeleteExpiredURLsFunc(ctx)
+	}
+	return nil
 }
 
 // Mock for ShortCodeGenerator
@@ -272,6 +285,9 @@ func TestURLService_CreateShortCode_WithAuthenticatedUser(t *testing.T) {
 		if capturedArg.UserID.Bytes != testUserID {
 			t.Errorf("expected UserID %v, got %v", testUserID, capturedArg.UserID.Bytes)
 		}
+		if capturedArg.ExpiresAt.Valid {
+			t.Error("expected ExpiresAt.Valid to be false for authenticated shorten")
+		}
 	})
 
 	t.Run("unauthenticated context leaves user_id invalid (null)", func(t *testing.T) {
@@ -292,6 +308,13 @@ func TestURLService_CreateShortCode_WithAuthenticatedUser(t *testing.T) {
 
 		if capturedArg.UserID.Valid {
 			t.Error("expected UserID.Valid to be false for anonymous shorten")
+		}
+		if !capturedArg.ExpiresAt.Valid {
+			t.Fatal("expected ExpiresAt.Valid to be true for anonymous shorten")
+		}
+		timeUntilExpiration := time.Until(capturedArg.ExpiresAt.Time)
+		if timeUntilExpiration < 6*24*time.Hour || timeUntilExpiration > 8*24*time.Hour {
+			t.Errorf("expected expiration around 7 days, got %v", timeUntilExpiration)
 		}
 	})
 }
@@ -628,3 +651,177 @@ func TestURLService_CreateShortCode_HostValidation(t *testing.T) {
 	}
 }
 
+func TestURLService_StartExpiredURLsCleanup(t *testing.T) {
+	generator := &mockShortCodeGenerator{}
+	testLogger := slog.New(slog.NewTextHandler(io.Discard, nil))
+
+	t.Run("initial cleanup runs and context cancellation terminates", func(t *testing.T) {
+		var callCount atomic.Int32
+		repo := &mockURLRepository{
+			DeleteExpiredURLsFunc: func(ctx context.Context) error {
+				callCount.Add(1)
+				return nil
+			},
+		}
+
+		srv := service.NewURLService(repo, generator)
+		ctx, cancel := context.WithCancel(context.Background())
+
+		done := make(chan struct{})
+		go func() {
+			srv.StartExpiredURLsCleanup(ctx, 1*time.Hour, testLogger)
+			close(done)
+		}()
+
+		// Wait for initial cleanup to be invoked
+		for range 50 {
+			if callCount.Load() >= 1 {
+				break
+			}
+			time.Sleep(2 * time.Millisecond)
+		}
+
+		if callCount.Load() < 1 {
+			t.Errorf("expected at least 1 call for initial cleanup, got %d", callCount.Load())
+		}
+
+		cancel()
+
+		select {
+		case <-done:
+			// Success, exited after cancellation
+		case <-time.After(1 * time.Second):
+			t.Fatal("StartExpiredURLsCleanup did not exit upon context cancellation")
+		}
+	})
+
+	t.Run("periodic cleanup runs repeatedly on ticker", func(t *testing.T) {
+		var callCount atomic.Int32
+		repo := &mockURLRepository{
+			DeleteExpiredURLsFunc: func(ctx context.Context) error {
+				callCount.Add(1)
+				return nil
+			},
+		}
+
+		srv := service.NewURLService(repo, generator)
+		ctx, cancel := context.WithCancel(context.Background())
+		defer cancel()
+
+		done := make(chan struct{})
+		go func() {
+			srv.StartExpiredURLsCleanup(ctx, 5*time.Millisecond, testLogger)
+			close(done)
+		}()
+
+		// Wait until ticker fires multiple times (initial + at least 2 ticks)
+		for range 100 {
+			if callCount.Load() >= 3 {
+				break
+			}
+			time.Sleep(5 * time.Millisecond)
+		}
+
+		if count := callCount.Load(); count < 3 {
+			t.Errorf("expected at least 3 calls, got %d", count)
+		}
+
+		cancel()
+
+		select {
+		case <-done:
+		case <-time.After(1 * time.Second):
+			t.Fatal("StartExpiredURLsCleanup did not exit upon context cancellation")
+		}
+	})
+
+	t.Run("handles error from DeleteExpiredURLs gracefully without panic", func(t *testing.T) {
+		var callCount atomic.Int32
+		repo := &mockURLRepository{
+			DeleteExpiredURLsFunc: func(ctx context.Context) error {
+				callCount.Add(1)
+				return errors.New("database unavailable")
+			},
+		}
+
+		srv := service.NewURLService(repo, generator)
+		ctx, cancel := context.WithCancel(context.Background())
+
+		done := make(chan struct{})
+		go func() {
+			srv.StartExpiredURLsCleanup(ctx, 5*time.Millisecond, testLogger)
+			close(done)
+		}()
+
+		// Wait for both initial and periodic calls with error
+		for range 100 {
+			if callCount.Load() >= 2 {
+				break
+			}
+			time.Sleep(5 * time.Millisecond)
+		}
+
+		if count := callCount.Load(); count < 2 {
+			t.Errorf("expected at least 2 calls despite errors, got %d", count)
+		}
+
+		cancel()
+
+		select {
+		case <-done:
+		case <-time.After(1 * time.Second):
+			t.Fatal("StartExpiredURLsCleanup did not exit upon cancellation")
+		}
+	})
+
+	t.Run("exits immediately when context is already canceled", func(t *testing.T) {
+		repo := &mockURLRepository{
+			DeleteExpiredURLsFunc: func(ctx context.Context) error {
+				return ctx.Err()
+			},
+		}
+
+		srv := service.NewURLService(repo, generator)
+		ctx, cancel := context.WithCancel(context.Background())
+		cancel()
+
+		done := make(chan struct{})
+		go func() {
+			srv.StartExpiredURLsCleanup(ctx, 1*time.Hour, testLogger)
+			close(done)
+		}()
+
+		select {
+		case <-done:
+		case <-time.After(500 * time.Millisecond):
+			t.Fatal("StartExpiredURLsCleanup did not exit immediately with pre-canceled context")
+		}
+	})
+
+	t.Run("resilient with nil logger and non-positive interval", func(t *testing.T) {
+		repo := &mockURLRepository{
+			DeleteExpiredURLsFunc: func(ctx context.Context) error {
+				return errors.New("db error")
+			},
+		}
+
+		srv := service.NewURLService(repo, generator)
+		ctx, cancel := context.WithCancel(context.Background())
+
+		done := make(chan struct{})
+		go func() {
+			// interval <= 0 and logger == nil must not panic
+			srv.StartExpiredURLsCleanup(ctx, 0, nil)
+			close(done)
+		}()
+
+		time.Sleep(10 * time.Millisecond)
+		cancel()
+
+		select {
+		case <-done:
+		case <-time.After(1 * time.Second):
+			t.Fatal("StartExpiredURLsCleanup did not exit")
+		}
+	})
+}

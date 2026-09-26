@@ -1,12 +1,13 @@
 -- name: CreateURL :one
-INSERT INTO urls (original_url, short_code, user_id)
-VALUES ($1, $2, $3)
+INSERT INTO urls (original_url, short_code, user_id, expires_at)
+VALUES ($1, $2, $3, $4)
 RETURNING short_code;
 
 -- name: GetURL :one
 SELECT original_url
 FROM urls 
-WHERE short_code = $1;
+WHERE short_code = $1
+AND (expires_at is NULL OR expires_at > NOW());
 
 -- name: GetURLStats :one
 SELECT click_count, created_at
@@ -23,3 +24,7 @@ SELECT original_url, short_code, created_at, click_count
 FROM urls
 WHERE user_id = $1
 ORDER BY created_at DESC;
+
+-- name: DeleteExpiredURLs :exec
+DELETE FROM urls
+WHERE expires_at <= NOW();

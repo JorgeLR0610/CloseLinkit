@@ -99,8 +99,9 @@ func main() {
 	go shortenRateLimiter.CleanInactiveIPs()
 	go statsRateLimiter.CleanInactiveIPs()
 
-	// Goroutine to clean expired refresh tokens
+	// Goroutine to clean expired refresh tokens and URLs
 	go authSvc.StartRefreshTokenCleanup(ctx, 1*time.Hour, logger)
+	go urlsSvc.StartExpiredURLsCleanup(ctx, 12*time.Hour, logger)
 
 	mux := http.NewServeMux()
 

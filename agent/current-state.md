@@ -95,11 +95,19 @@
    - Expanded unit test coverage in `service/urls_test.go` (`ResolveShortCode`, `GetURLStats`, and `isValidHost` IP/domain validation), `service/auth_test.go` (defaults and edge cases), and created `response/json_test.go` (100% coverage).
    - Backend test coverage across all internal packages is now $\ge 89.1\%$ with 100% tests passing and zero race conditions.
 
+10. **Anonymous URL Expiration (7 Days) & Periodic Cleanup (`StartExpiredURLsCleanup`):**
+    - Added migration `server/db/migrations/005_add_expires_at_column.sql` adding nullable `expires_at TIMESTAMPTZ` with index `idx_urls_expired`.
+    - Updated `CreateURL` in `urls.sql` and `URLService.CreateShortCode` to assign 7-day expiration (`time.Now().Add(7 * 24 * time.Hour)`) for anonymous URLs, while authenticated URLs do not expire (`expires_at IS NULL`).
+    - Updated `GetURL` query in `urls.sql` to filter out expired URLs (`AND (expires_at IS NULL OR expires_at > NOW())`).
+    - Implemented `DeleteExpiredURLs` query and `URLService.StartExpiredURLsCleanup` running periodically every 12 hours via a background goroutine in `main.go`.
+    - Updated `service/urls_test.go` with `DeleteExpiredURLs` repository mock, verified 7-day expiration rule in `TestURLService_CreateShortCode_WithAuthenticatedUser`, and added comprehensive unit tests in `TestURLService_StartExpiredURLsCleanup` (initial execution, ticker periodic execution, error resilience, and graceful context cancellation).
+    - `internal/service` test coverage reached 90.5% with 100% tests passing and zero race conditions.
+
 ---
 
 ## Active Task & Next Steps
 
-The backend JWT-based User Authentication milestones (Steps 1–5) are fully completed (ready for `v0.3.0`).
+The backend JWT-based User Authentication milestones are fully completed.
 
 ### Next Steps:
 - Frontend Authentication Integration:
