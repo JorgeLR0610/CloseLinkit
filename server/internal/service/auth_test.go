@@ -359,13 +359,16 @@ func TestAuthService_RefreshToken(t *testing.T) {
 		}
 
 		srv := service.NewAuthService(repo, cfg)
-		tokens, err := srv.RefreshToken(context.Background(), rawRefreshToken)
+		tokens, user, err := srv.RefreshToken(context.Background(), rawRefreshToken)
 		if err != nil {
 			t.Fatalf("unexpected error refreshing token: %v", err)
 		}
 
 		if tokens.AccessToken == "" || tokens.RefreshToken == "" {
 			t.Fatal("expected new access and refresh tokens")
+		}
+		if user == nil || user.ID != testUserID {
+			t.Errorf("expected user with id %s, got %v", testUserID, user)
 		}
 		if tokens.RefreshToken == rawRefreshToken {
 			t.Error("expected rotated refresh token to be different from original")
@@ -386,7 +389,7 @@ func TestAuthService_RefreshToken(t *testing.T) {
 		}
 
 		srv := service.NewAuthService(repo, cfg)
-		_, err := srv.RefreshToken(context.Background(), rawRefreshToken)
+		_, _, err := srv.RefreshToken(context.Background(), rawRefreshToken)
 		if !errors.Is(err, service.ErrInvalidRefreshToken) {
 			t.Errorf("expected ErrInvalidRefreshToken, got %v", err)
 		}
@@ -408,7 +411,7 @@ func TestAuthService_RefreshToken(t *testing.T) {
 		}
 
 		srv := service.NewAuthService(repo, cfg)
-		_, err := srv.RefreshToken(context.Background(), rawRefreshToken)
+		_, _, err := srv.RefreshToken(context.Background(), rawRefreshToken)
 		if !errors.Is(err, service.ErrExpiredRefreshToken) {
 			t.Errorf("expected ErrExpiredRefreshToken, got %v", err)
 		}
@@ -416,7 +419,7 @@ func TestAuthService_RefreshToken(t *testing.T) {
 
 	t.Run("empty refresh token", func(t *testing.T) {
 		srv := service.NewAuthService(&mockAuthRepository{}, cfg)
-		_, err := srv.RefreshToken(context.Background(), "   ")
+		_, _, err := srv.RefreshToken(context.Background(), "   ")
 		if !errors.Is(err, service.ErrInvalidRefreshToken) {
 			t.Errorf("expected ErrInvalidRefreshToken, got %v", err)
 		}

@@ -380,6 +380,8 @@ components:
           format: int64
           description: Lifetime of the new access token in seconds
           example: 900
+        user:
+          $ref: "#/components/schemas/UserResponse"
     LogoutRequest:
       type: object
       required:

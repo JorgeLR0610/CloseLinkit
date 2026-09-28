@@ -189,10 +189,14 @@ func (s *AuthService) Login(ctx context.Context, email, password string) (*Token
 	return tokenPair, &userRes, nil
 }
 
-func (s *AuthService) RefreshToken(ctx context.Context, rawRefreshToken string) (*TokenPair, error) {
+func (s *AuthService) RefreshTokenTTL() time.Duration {
+	return s.cfg.RefreshTokenTTL
+}
+
+func (s *AuthService) RefreshToken(ctx context.Context, rawRefreshToken string) (*TokenPair, *UserResponse, error) {
 	rawRefreshToken = strings.TrimSpace(rawRefreshToken)
 	if rawRefreshToken == "" {
-		return nil, ErrInvalidRefreshToken
+		return nil, nil, ErrInvalidRefreshToken
 	}
 
 	tokenHash := security.HashRefreshToken(rawRefreshToken)
@@ -200,40 +204,41 @@ func (s *AuthService) RefreshToken(ctx context.Context, rawRefreshToken string) 
 	tokenRecord, err := s.repo.GetRefreshTokenByHash(ctx, tokenHash)
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
-			return nil, ErrInvalidRefreshToken
+			return nil, nil, ErrInvalidRefreshToken
 		}
-		return nil, fmt.Errorf("could not fetch refresh token: %w", err)
+		return nil, nil, fmt.Errorf("could not fetch refresh token: %w", err)
 	}
 
 	if time.Now().After(tokenRecord.ExpiresAt.Time) {
 		_ = s.repo.RevokeRefreshToken(ctx, tokenHash)
-		return nil, ErrExpiredRefreshToken
+		return nil, nil, ErrExpiredRefreshToken
 	}
 
 	// Token rotation: revoke old token
 	if err := s.repo.RevokeRefreshToken(ctx, tokenHash); err != nil {
-		return nil, fmt.Errorf("could not revoke old refresh token: %w", err)
+		return nil, nil, fmt.Errorf("could not revoke old refresh token: %w", err)
 	}
 
 	user, err := s.repo.GetUserByID(ctx, tokenRecord.UserID)
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
-			return nil, ErrUserNotFound
+			return nil, nil, ErrUserNotFound
 		}
-		return nil, fmt.Errorf("could not fetch user for token: %w", err)
+		return nil, nil, fmt.Errorf("could not fetch user for token: %w", err)
 	}
 
 	userID, err := uuid.FromBytes(user.ID.Bytes[:])
 	if err != nil {
-		return nil, fmt.Errorf("invalid user id: %w", err)
+		return nil, nil, fmt.Errorf("invalid user id: %w", err)
 	}
 
 	tokenPair, err := s.generateAndStoreTokens(ctx, userID, user.Email)
 	if err != nil {
-		return nil, fmt.Errorf("could not issue new tokens: %w", err)
+		return nil, nil, fmt.Errorf("could not issue new tokens: %w", err)
 	}
 
-	return tokenPair, nil
+	userResp := mapUserToResponse(user)
+	return tokenPair, &userResp, nil
 }
 
 func (s *AuthService) Logout(ctx context.Context, rawRefreshToken string) error {

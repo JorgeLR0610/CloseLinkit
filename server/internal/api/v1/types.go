@@ -38,7 +38,7 @@ type LoginRequest struct {
 
 type LoginResponse struct {
 	AccessToken  string               `json:"access_token"`
-	RefreshToken string               `json:"refresh_token"`
+	RefreshToken string               `json:"refresh_token,omitempty"`
 	ExpiresIn    int64                `json:"expires_in"`
 	User         service.UserResponse `json:"user"`
 }
@@ -48,9 +48,10 @@ type RefreshTokenRequest struct {
 }
 
 type RefreshTokenResponse struct {
-	AccessToken  string `json:"access_token"`
-	RefreshToken string `json:"refresh_token"`
-	ExpiresIn    int64  `json:"expires_in"`
+	AccessToken  string               `json:"access_token"`
+	RefreshToken string               `json:"refresh_token,omitempty"`
+	ExpiresIn    int64                `json:"expires_in"`
+	User         service.UserResponse `json:"user"`
 }
 
 type LogoutRequest struct {
