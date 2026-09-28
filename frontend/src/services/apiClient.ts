@@ -3,6 +3,7 @@ const baseURL = import.meta.env.VITE_API_BASE_URL ?? "";
 async function request<T>(endpoint: string, options: RequestInit = {}): Promise<T> {
   try {
     const response = await fetch(`${baseURL}${endpoint}`, {
+      credentials: "include",
       ...options,
       headers: {
         "Content-Type": "application/json",
@@ -24,6 +25,10 @@ async function request<T>(endpoint: string, options: RequestInit = {}): Promise<
       }
 
       throw new Error(errorMessage);
+    }
+
+    if (response.status === 204) {
+      return undefined as T;
     }
 
     return (await response.json()) as T;

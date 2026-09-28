@@ -10,7 +10,16 @@ interface Props {
 
 export default function URLListItem({ item }: Props) {
   const [displayedStats, setDisplayedStats] = useState(false);
-  const [stats, setStats] = useState<URLStats | null>(null);
+  const [stats, setStats] = useState<URLStats | null>(() => {
+    if (item.clickCount !== undefined && item.createdAt) {
+      return {
+        originalURL: item.originalURL,
+        clickCount: item.clickCount,
+        createdAt: new Date(item.createdAt),
+      };
+    }
+    return null;
+  });
 
   const formattedDate = stats?.createdAt
     ? new Date(stats.createdAt).toLocaleString(undefined, {
@@ -41,6 +50,7 @@ export default function URLListItem({ item }: Props) {
             displayedStats={displayedStats}
             setDisplayedStats={setDisplayedStats}
             setStats={setStats}
+            stats={stats}
           />
         </div>
       </div>

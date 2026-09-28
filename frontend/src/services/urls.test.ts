@@ -28,10 +28,31 @@ afterEach(() => server.resetHandlers());
 afterAll(() => server.close());
 
 describe("urls service", () => {
-  it("shortenURL sends correct payload and maps response", async () => {
+  it("shortenURL sends correct payload and maps response including expiresAt", async () => {
     const result = await shortenURL("https://example.com/long-url");
     expect(result).toEqual({
       shortURL: "http://localhost:8080/xyz9999",
+      expiresAt: "2026-10-03T12:00:00Z",
+    });
+  });
+
+  it("shortenURL attaches Authorization header when accessToken is provided", async () => {
+    let capturedAuthHeader: string | null = null;
+    server.use(
+      http.post(`${baseURL}/api/v1/shorten`, ({ request }) => {
+        capturedAuthHeader = request.headers.get("Authorization");
+        return HttpResponse.json({
+          short_url: `http://localhost:8080/perm123`,
+          expires_at: null,
+        });
+      }),
+    );
+
+    const result = await shortenURL("https://example.com/perm", "my-jwt-token");
+    expect(capturedAuthHeader).toBe("Bearer my-jwt-token");
+    expect(result).toEqual({
+      shortURL: "http://localhost:8080/perm123",
+      expiresAt: null,
     });
   });
 
