@@ -9,6 +9,7 @@ interface Props {
   displayedStats: boolean;
   setDisplayedStats: Dispatch<SetStateAction<boolean>>;
   setStats: Dispatch<SetStateAction<URLStats | null>>;
+  stats?: URLStats | null;
 }
 
 export default function StatsButton({
@@ -17,9 +18,10 @@ export default function StatsButton({
   displayedStats,
   setDisplayedStats,
   setStats,
+  stats,
 }: Props) {
   const handleStatsDisplay = async () => {
-    if (!displayedStats) {
+    if (!displayedStats && !stats) {
       try {
         const resp = await getURLStats(shortURL);
         setStats(resp);

@@ -41,4 +41,25 @@ describe("URLListItem Component", () => {
       expect(screen.getByText("Created On")).toBeInTheDocument();
     });
   });
+
+  it("displays pre-populated analytics stats without calling getURLStats", async () => {
+    const getStatsSpy = vi.spyOn(urlServices, "getURLStats");
+    const itemWithStats = {
+      originalURL: "https://example.com/preloaded",
+      shortURL: "http://localhost:8080/preload1",
+      clickCount: 42,
+      createdAt: "2026-09-01T12:00:00Z",
+    };
+
+    render(<URLListItem item={itemWithStats} />);
+
+    const analyticsButton = screen.getByRole("button", { name: "Analytics" });
+    fireEvent.click(analyticsButton);
+
+    await waitFor(() => {
+      expect(screen.getByText("Total Clicks")).toBeInTheDocument();
+      expect(screen.getByText("42")).toBeInTheDocument();
+      expect(getStatsSpy).not.toHaveBeenCalled();
+    });
+  });
 });

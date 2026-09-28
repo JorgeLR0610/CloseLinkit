@@ -1,10 +1,14 @@
 export type URLItem = {
   originalURL: string;
   shortURL: string;
+  expiresAt?: string | null;
+  clickCount?: number;
+  createdAt?: string;
 };
 
 export type ShortenURLResponse = {
   shortURL: string;
+  expiresAt?: string | null;
 };
 
 export type ShortenURLAPIResponse = {

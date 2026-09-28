@@ -6,9 +6,18 @@ import type {
 } from "../types/url";
 import request from "./apiClient";
 
-export async function shortenURL(originalURL: string): Promise<ShortenURLResponse> {
+export async function shortenURL(
+  originalURL: string,
+  accessToken?: string,
+): Promise<ShortenURLResponse> {
+  const headers: Record<string, string> = {};
+  if (accessToken) {
+    headers["Authorization"] = `Bearer ${accessToken}`;
+  }
+
   const data = await request<ShortenURLAPIResponse>("/api/v1/shorten", {
     method: "POST",
+    headers,
     body: JSON.stringify({
       url: originalURL,
     }),
@@ -16,6 +25,7 @@ export async function shortenURL(originalURL: string): Promise<ShortenURLRespons
 
   return {
     shortURL: data.short_url,
+    expiresAt: data.expires_at,
   };
 }
 

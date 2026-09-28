@@ -35,6 +35,19 @@ describe("apiClient request utility", () => {
     expect(data).toEqual({ success: true, message: "OK" });
   });
 
+  it("handles 204 No Content response and returns undefined without error", async () => {
+    server.use(
+      http.post(`${baseURL}/api/v1/test-no-content`, () => {
+        return new HttpResponse(null, { status: 204 });
+      }),
+    );
+
+    const data = await request<void>("/api/v1/test-no-content", {
+      method: "POST",
+    });
+    expect(data).toBeUndefined();
+  });
+
   it("handles backend error with custom JSON error message", async () => {
     await expect(request("/api/v1/test-json-error", { method: "POST" })).rejects.toThrow(
       "Custom backend error",
