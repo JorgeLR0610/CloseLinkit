@@ -66,6 +66,15 @@ func TestCORSMiddleware(t *testing.T) {
 				t.Errorf("expected Access-Control-Allow-Origin header to be %q, got %q", tt.expectedCORSHeader, corsHeader)
 			}
 
+			credHeader := rr.Header().Get("Access-Control-Allow-Credentials")
+			expectedCred := ""
+			if tt.expectedCORSHeader != "" {
+				expectedCred = "true"
+			}
+			if credHeader != expectedCred {
+				t.Errorf("expected Access-Control-Allow-Credentials header to be %q, got %q", expectedCred, credHeader)
+			}
+
 			if rr.Code != tt.expectedStatus {
 				t.Errorf("expected status code %d, got %d", tt.expectedStatus, rr.Code)
 			}
