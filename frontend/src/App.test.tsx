@@ -3,6 +3,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { MemoryRouter } from "react-router";
 import toast from "react-hot-toast";
 import App from "./App";
+import { AuthProvider } from "./context/AuthProvider";
 import * as urlServices from "./services/urls";
 import * as AuthContextModule from "./context/useAuth";
 import * as authService from "./services/auth";
@@ -287,5 +288,145 @@ describe("App Component", () => {
 
     expect(screen.getByText("CloseLinkit")).toBeInTheDocument();
     expect(screen.getByPlaceholderText(/paste your link here/i)).toBeInTheDocument();
+  });
+
+  it("claims anonymous URLs upon login and displays claimed URLs in list", async () => {
+    vi.restoreAllMocks();
+    vi.spyOn(toast, "success").mockImplementation(() => "");
+    vi.spyOn(toast, "error").mockImplementation(() => "");
+
+    vi.spyOn(authService, "refreshToken").mockRejectedValue(new Error("No session"));
+
+    localStorage.setItem(
+      "history",
+      JSON.stringify([
+        { originalURL: "https://example.com/anon-link", shortURL: "http://localhost:8080/anon123" },
+      ]),
+    );
+
+    const claimSpy = vi.spyOn(urlServices, "claimStoredURLs").mockImplementation(async (token) => {
+      expect(token).toBe("test-claim-token");
+      localStorage.removeItem("history");
+      return {
+        claimedCount: 1,
+        shortCodes: ["anon123"],
+      };
+    });
+
+    vi.spyOn(authService, "login").mockResolvedValue({
+      access_token: "test-claim-token",
+      expires_in: 900,
+      user: { id: "user-claim-1", email: "claim@example.com", created_at: "" },
+    });
+
+    vi.spyOn(authService, "getUserURLs").mockResolvedValue([
+      {
+        original_url: "https://example.com/anon-link",
+        short_code: "anon123",
+        short_url: "http://localhost:8080/anon123",
+        created_at: "2026-09-28T10:00:00Z",
+        click_count: 0,
+      },
+    ]);
+
+    render(
+      <MemoryRouter initialEntries={["/login"]}>
+        <AuthProvider>
+          <App />
+        </AuthProvider>
+      </MemoryRouter>,
+    );
+
+    fireEvent.change(screen.getByLabelText(/email/i), { target: { value: "claim@example.com" } });
+    fireEvent.change(screen.getByLabelText(/password/i), { target: { value: "password123" } });
+    fireEvent.click(screen.getByRole("button", { name: "Log In" }));
+
+    await waitFor(() => {
+      expect(claimSpy).toHaveBeenCalledWith("test-claim-token");
+      expect(localStorage.getItem("history")).toBeNull();
+    });
+
+    await waitFor(() => {
+      expect(screen.getByText("https://example.com/anon-link")).toBeInTheDocument();
+      expect(screen.getByText("http://localhost:8080/anon123")).toBeInTheDocument();
+    });
+  });
+
+  it("claims anonymous URLs upon signup and displays claimed URLs in list", async () => {
+    vi.restoreAllMocks();
+    vi.spyOn(toast, "success").mockImplementation(() => "");
+    vi.spyOn(toast, "error").mockImplementation(() => "");
+
+    vi.spyOn(authService, "refreshToken").mockRejectedValue(new Error("No session"));
+
+    localStorage.setItem(
+      "history",
+      JSON.stringify([
+        {
+          originalURL: "https://example.com/signup-anon",
+          shortURL: "http://localhost:8080/anon456",
+        },
+      ]),
+    );
+
+    const claimSpy = vi.spyOn(urlServices, "claimStoredURLs").mockImplementation(async (token) => {
+      expect(token).toBe("signup-claim-token");
+      localStorage.removeItem("history");
+      return {
+        claimedCount: 1,
+        shortCodes: ["anon456"],
+      };
+    });
+
+    vi.spyOn(authService, "register").mockResolvedValue({
+      id: "user-claim-2",
+      email: "signup-claim@example.com",
+      created_at: "",
+    });
+
+    vi.spyOn(authService, "login").mockResolvedValue({
+      access_token: "signup-claim-token",
+      expires_in: 900,
+      user: { id: "user-claim-2", email: "signup-claim@example.com", created_at: "" },
+    });
+
+    vi.spyOn(authService, "getUserURLs").mockResolvedValue([
+      {
+        original_url: "https://example.com/signup-anon",
+        short_code: "anon456",
+        short_url: "http://localhost:8080/anon456",
+        created_at: "2026-09-28T10:00:00Z",
+        click_count: 0,
+      },
+    ]);
+
+    render(
+      <MemoryRouter initialEntries={["/signup"]}>
+        <AuthProvider>
+          <App />
+        </AuthProvider>
+      </MemoryRouter>,
+    );
+
+    fireEvent.change(screen.getByLabelText(/^email/i), {
+      target: { value: "signup-claim@example.com" },
+    });
+    fireEvent.change(screen.getByLabelText(/^password/i), {
+      target: { value: "password123" },
+    });
+    fireEvent.change(screen.getByLabelText(/confirm password/i), {
+      target: { value: "password123" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Sign Up" }));
+
+    await waitFor(() => {
+      expect(claimSpy).toHaveBeenCalledWith("signup-claim-token");
+      expect(localStorage.getItem("history")).toBeNull();
+    });
+
+    await waitFor(() => {
+      expect(screen.getByText("https://example.com/signup-anon")).toBeInTheDocument();
+      expect(screen.getByText("http://localhost:8080/anon456")).toBeInTheDocument();
+    });
   });
 });

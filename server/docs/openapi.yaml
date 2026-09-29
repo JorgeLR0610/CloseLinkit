@@ -208,6 +208,45 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
+  /api/v1/urls/claim:
+    post:
+      summary: Claim anonymous shortened URLs
+      description: Associates previously created anonymous URLs with the authenticated user account and removes expiration.
+      tags:
+        - URLs
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ClaimURLsRequest"
+      responses:
+        "200":
+          description: URLs claimed successfully
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ClaimURLsResponse"
+        "400":
+          description: Invalid request payload
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          description: Missing, invalid, or expired authorization token
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
   /{shortCode}:
     get:
       summary: Redirect to the original URL
@@ -441,3 +480,25 @@ components:
         error:
           type: string
           example: There was an error on our end
+    ClaimURLsRequest:
+      type: object
+      required:
+        - short_codes
+      properties:
+        short_codes:
+          type: array
+          items:
+            type: string
+          example: ["aB3dE1z", "xY9zQ2w"]
+    ClaimURLsResponse:
+      type: object
+      properties:
+        claimed_count:
+          type: integer
+          example: 2
+        short_codes:
+          type: array
+          items:
+            type: string
+          example: ["aB3dE1z", "xY9zQ2w"]
+

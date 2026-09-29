@@ -31,6 +31,14 @@ export function HomePage() {
   const [userURLs, setUserURLs] = useState<UserURLItem[]>([]);
   const [recentURL, setRecentURL] = useState<string | null>(null);
 
+  const [prevIsAuthenticated, setPrevIsAuthenticated] = useState(isAuthenticated);
+  if (prevIsAuthenticated !== isAuthenticated) {
+    setPrevIsAuthenticated(isAuthenticated);
+    if (isAuthenticated) {
+      setLocalHistory([]);
+    }
+  }
+
   // Sync anonymous URLs to localStorage only for unauthenticated users
   useEffect(() => {
     if (!isAuthenticated) {

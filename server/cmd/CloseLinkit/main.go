@@ -136,6 +136,15 @@ func main() {
 	)
 
 	mux.Handle(
+		"POST /api/v1/urls/claim",
+		middleware.RequestLogging(logger)(
+			middleware.RequireAuth(authSvc, logger)(
+				http.HandlerFunc(urlsHandler.HandlerClaimURLs),
+			),
+		),
+	)
+
+	mux.Handle(
 		"GET /{shortCode}",
 		middleware.RequestLogging(logger)(
 			http.HandlerFunc(urlsHandler.HandlerResolveShortURL),

@@ -22,6 +22,7 @@ type URLServicer interface {
 	ResolveShortCode(ctx context.Context, shortCode string) (string, error)
 	GetURLStats(ctx context.Context, shortCode string) (repository.GetURLStatsRow, error)
 	GetURLsByUserID(ctx context.Context, userID uuid.UUID) ([]service.UserURL, error)
+	ClaimURLs(ctx context.Context, userID uuid.UUID, shortCodes []string) ([]string, error)
 }
 
 type URLHandler struct {
@@ -190,6 +191,51 @@ func (h *URLHandler) HandlerGetUserURLs(w http.ResponseWriter, r *http.Request) 
 	if err := response.WriteJSON(w, http.StatusOK, responseURLs); err != nil {
 		h.logger.Error(
 			"could not send user URLs response",
+			slog.String("method", r.Method),
+			slog.String("path", r.URL.Path),
+			slog.Any("error", err),
+		)
+	}
+}
+
+func (h *URLHandler) HandlerClaimURLs(w http.ResponseWriter, r *http.Request) {
+	userID, ok := service.UserIDFromContext(r.Context())
+	if !ok {
+		h.writeErrorLogged(w, http.StatusUnauthorized, "Unauthorized")
+		return
+	}
+
+	var req ClaimURLsRequest
+	decoder := json.NewDecoder(r.Body)
+	decoder.DisallowUnknownFields()
+	if err := decoder.Decode(&req); err != nil {
+		h.writeErrorLogged(w, http.StatusBadRequest, "Invalid request body")
+		return
+	}
+
+	claimed, err := h.service.ClaimURLs(r.Context(), userID, req.ShortCodes)
+	if err != nil {
+		h.writeErrorLogged(w, http.StatusInternalServerError, InternalErrorMsg)
+		h.logger.Error(
+			"could not claim URLs",
+			slog.String("method", r.Method),
+			slog.String("path", r.URL.Path),
+			slog.String("user_id", userID.String()),
+			slog.Any("error", err),
+		)
+		return
+	}
+
+	if claimed == nil {
+		claimed = []string{}
+	}
+
+	if err := response.WriteJSON(w, http.StatusOK, ClaimURLsResponse{
+		ClaimedCount: len(claimed),
+		ShortCodes:   claimed,
+	}); err != nil {
+		h.logger.Error(
+			"could not send claim URLs response",
 			slog.String("method", r.Method),
 			slog.String("path", r.URL.Path),
 			slog.Any("error", err),

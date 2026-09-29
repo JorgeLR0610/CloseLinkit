@@ -11,6 +11,38 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
+const claimURLsByShortCodes = `-- name: ClaimURLsByShortCodes :many
+UPDATE urls
+SET user_id = $1, expires_at = NULL
+WHERE short_code = ANY($2::text[]) AND user_id IS NULL
+RETURNING short_code
+`
+
+type ClaimURLsByShortCodesParams struct {
+	UserID     pgtype.UUID
+	ShortCodes []string
+}
+
+func (q *Queries) ClaimURLsByShortCodes(ctx context.Context, arg ClaimURLsByShortCodesParams) ([]string, error) {
+	rows, err := q.db.Query(ctx, claimURLsByShortCodes, arg.UserID, arg.ShortCodes)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []string
+	for rows.Next() {
+		var short_code string
+		if err := rows.Scan(&short_code); err != nil {
+			return nil, err
+		}
+		items = append(items, short_code)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const createURL = `-- name: CreateURL :one
 INSERT INTO urls (original_url, short_code, user_id, expires_at)
 VALUES ($1, $2, $3, $4)

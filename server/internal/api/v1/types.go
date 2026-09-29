@@ -57,3 +57,12 @@ type RefreshTokenResponse struct {
 type LogoutRequest struct {
 	RefreshToken string `json:"refresh_token"`
 }
+
+type ClaimURLsRequest struct {
+	ShortCodes []string `json:"short_codes"`
+}
+
+type ClaimURLsResponse struct {
+	ClaimedCount int      `json:"claimed_count"`
+	ShortCodes   []string `json:"short_codes"`
+}
