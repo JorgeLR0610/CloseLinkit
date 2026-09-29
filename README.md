@@ -175,6 +175,7 @@ The Go backend exposes a clean REST API. Full request/response schemas and inter
 | `POST` | `/api/v1/auth/logout` | Revokes the refresh token and ends the session |
 | `POST` | `/api/v1/shorten` | Shortens a long URL (optionally associates with authenticated user if Bearer token is provided) |
 | `GET` | `/api/v1/urls` | Retrieves all shortened URLs for the authenticated user (Requires Bearer token) |
+| `POST` | `/api/v1/urls/claim` | Claims anonymous URLs for the authenticated user and removes expiration (Requires Bearer token) |
 | `GET` | `/api/v1/{shortCode}/stats` | Retrieves access counts and statistics for a short code |
 | `GET` | `/{shortCode}` | Resolves short code and issues an HTTP 302 redirect to original URL |
 | `GET` | `/docs/` | Serves embedded Swagger UI documentation |
@@ -239,7 +240,7 @@ Based on our planned evolution in [`docs/architecture.md`](/docs/architecture.md
 
 - [x] **Analytics Dashboard**: Analytics panel displaying total click counts and creation timestamp.
 - [ ] **Custom Short URLs**: Allow users to specify custom aliases for shortened links.
-- [ ] **User Authentication**: JWT-based authentication for user sessions.
+- [x] **User Authentication**: JWT-based authentication with secure HttpOnly cookie session handling.
 - [ ] **User Accounts & Link Management**: Manage, update, and delete created links.
 - [ ] **Infrastructure & Deployment**: Published Docker images, GitHub Actions CI/CD pipeline, AWS deployment, and Kubernetes manifests.
 

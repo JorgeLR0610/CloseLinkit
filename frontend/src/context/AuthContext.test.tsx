@@ -3,6 +3,7 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import { AuthProvider } from "./AuthProvider";
 import { useAuth } from "./useAuth";
 import * as authService from "../services/auth";
+import * as urlService from "../services/urls";
 
 const mockUser = {
   id: "user-123",
@@ -39,7 +40,8 @@ describe("AuthContext", () => {
     consoleSpy.mockRestore();
   });
 
-  it("restores session on mount when cookie refresh succeeds", async () => {
+  it("restores session on mount when cookie refresh succeeds and calls claimStoredURLs", async () => {
+    const claimSpy = vi.spyOn(urlService, "claimStoredURLs").mockResolvedValue(null);
     vi.spyOn(authService, "refreshToken").mockResolvedValue({
       access_token: "restored-token",
       expires_in: 900,
@@ -58,6 +60,7 @@ describe("AuthContext", () => {
       expect(screen.getByTestId("auth-state")).toHaveTextContent("authenticated");
       expect(screen.getByTestId("user-email")).toHaveTextContent("test@example.com");
       expect(screen.getByTestId("token")).toHaveTextContent("restored-token");
+      expect(claimSpy).toHaveBeenCalledWith("restored-token");
     });
   });
 
@@ -77,7 +80,42 @@ describe("AuthContext", () => {
     });
   });
 
-  it("logs in successfully and updates state", async () => {
+  it("logs in successfully, claims stored URLs, and updates state", async () => {
+    const claimSpy = vi.spyOn(urlService, "claimStoredURLs").mockResolvedValue({
+      claimedCount: 2,
+      shortCodes: ["c1", "c2"],
+    });
+    vi.spyOn(authService, "refreshToken").mockRejectedValue(new Error("No session"));
+    vi.spyOn(authService, "login").mockResolvedValue({
+      access_token: "login-token",
+      expires_in: 900,
+      user: { ...mockUser, email: "login@example.com" },
+    });
+
+    render(
+      <AuthProvider>
+        <TestConsumer />
+      </AuthProvider>,
+    );
+
+    await waitFor(() => {
+      expect(screen.getByTestId("auth-state")).toHaveTextContent("guest");
+    });
+
+    await act(async () => {
+      screen.getByText("Do Login").click();
+    });
+
+    await waitFor(() => {
+      expect(claimSpy).toHaveBeenCalledWith("login-token");
+      expect(screen.getByTestId("auth-state")).toHaveTextContent("authenticated");
+      expect(screen.getByTestId("user-email")).toHaveTextContent("login@example.com");
+      expect(screen.getByTestId("token")).toHaveTextContent("login-token");
+    });
+  });
+
+  it("login succeeds even if claimStoredURLs fails", async () => {
+    vi.spyOn(urlService, "claimStoredURLs").mockRejectedValue(new Error("Claim network error"));
     vi.spyOn(authService, "refreshToken").mockRejectedValue(new Error("No session"));
     vi.spyOn(authService, "login").mockResolvedValue({
       access_token: "login-token",
@@ -101,12 +139,12 @@ describe("AuthContext", () => {
 
     await waitFor(() => {
       expect(screen.getByTestId("auth-state")).toHaveTextContent("authenticated");
-      expect(screen.getByTestId("user-email")).toHaveTextContent("login@example.com");
       expect(screen.getByTestId("token")).toHaveTextContent("login-token");
     });
   });
 
-  it("registers and auto-logins successfully", async () => {
+  it("registers and auto-logins successfully, invoking claimStoredURLs", async () => {
+    const claimSpy = vi.spyOn(urlService, "claimStoredURLs").mockResolvedValue(null);
     vi.spyOn(authService, "refreshToken").mockRejectedValue(new Error("No session"));
     vi.spyOn(authService, "register").mockResolvedValue({
       ...mockUser,
@@ -133,6 +171,7 @@ describe("AuthContext", () => {
     });
 
     await waitFor(() => {
+      expect(claimSpy).toHaveBeenCalledWith("auto-login-token");
       expect(screen.getByTestId("auth-state")).toHaveTextContent("authenticated");
       expect(screen.getByTestId("user-email")).toHaveTextContent("signup@example.com");
       expect(screen.getByTestId("token")).toHaveTextContent("auto-login-token");

@@ -28,3 +28,10 @@ ORDER BY created_at DESC;
 -- name: DeleteExpiredURLs :exec
 DELETE FROM urls
 WHERE expires_at <= NOW();
+
+-- name: ClaimURLsByShortCodes :many
+UPDATE urls
+SET user_id = $1, expires_at = NULL
+WHERE short_code = ANY(@short_codes::text[]) AND user_id IS NULL
+RETURNING short_code;
+

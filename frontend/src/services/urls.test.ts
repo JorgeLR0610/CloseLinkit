@@ -1,7 +1,7 @@
-import { describe, it, expect, beforeAll, afterAll, afterEach } from "vitest";
+import { describe, it, expect, beforeAll, afterAll, afterEach, vi } from "vitest";
 import { http, HttpResponse } from "msw";
 import { setupServer } from "msw/node";
-import { shortenURL, getURLStats } from "./urls";
+import { shortenURL, getURLStats, claimURLs, claimStoredURLs } from "./urls";
 
 const baseURL = import.meta.env.VITE_API_BASE_URL || "";
 
@@ -21,10 +21,21 @@ const server = setupServer(
       created_at: "2026-08-01T12:00:00Z",
     });
   }),
+  http.post(`${baseURL}/api/v1/urls/claim`, async ({ request }) => {
+    const body = (await request.json()) as { short_codes: string[] };
+    return HttpResponse.json({
+      claimed_count: body.short_codes.length,
+      short_codes: body.short_codes,
+    });
+  }),
 );
 
 beforeAll(() => server.listen());
-afterEach(() => server.resetHandlers());
+afterEach(() => {
+  server.resetHandlers();
+  localStorage.clear();
+  vi.restoreAllMocks();
+});
 afterAll(() => server.close());
 
 describe("urls service", () => {
@@ -64,5 +75,102 @@ describe("urls service", () => {
       createdAt: new Date("2026-08-01T12:00:00Z"),
     });
     expect(stats.createdAt).toBeInstanceOf(Date);
+  });
+
+  it("claimURLs sends Authorization header and payload, and maps response", async () => {
+    let capturedAuthHeader: string | null = null;
+    let capturedBody: unknown = null;
+
+    server.use(
+      http.post(`${baseURL}/api/v1/urls/claim`, async ({ request }) => {
+        capturedAuthHeader = request.headers.get("Authorization");
+        capturedBody = await request.json();
+        return HttpResponse.json({
+          claimed_count: 2,
+          short_codes: ["code1", "code2"],
+        });
+      }),
+    );
+
+    const result = await claimURLs(["code1", "code2"], "claim-token");
+    expect(capturedAuthHeader).toBe("Bearer claim-token");
+    expect(capturedBody).toEqual({ short_codes: ["code1", "code2"] });
+    expect(result).toEqual({
+      claimedCount: 2,
+      shortCodes: ["code1", "code2"],
+    });
+  });
+
+  it("claimStoredURLs returns null when no history in localStorage", async () => {
+    const result = await claimStoredURLs("claim-token");
+    expect(result).toBeNull();
+  });
+
+  it("claimStoredURLs returns null when localStorage has invalid json", async () => {
+    localStorage.setItem("history", "invalid-json{{");
+    const result = await claimStoredURLs("claim-token");
+    expect(result).toBeNull();
+  });
+
+  it("claimStoredURLs claims valid items and clears localStorage upon success", async () => {
+    const futureDate = new Date(Date.now() + 1000 * 60 * 60 * 24).toISOString();
+    const pastDate = new Date(Date.now() - 1000 * 60 * 60 * 24).toISOString();
+
+    const storedItems = [
+      {
+        originalURL: "https://example.com/valid1",
+        shortURL: "http://localhost:8080/code1",
+        expiresAt: futureDate,
+      },
+      {
+        originalURL: "https://example.com/expired",
+        shortURL: "http://localhost:8080/exp-code",
+        expiresAt: pastDate,
+      },
+      { originalURL: "https://example.com/valid2", shortURL: "http://localhost:8080/code2" },
+    ];
+    localStorage.setItem("history", JSON.stringify(storedItems));
+
+    const result = await claimStoredURLs("claim-token");
+    expect(result).toEqual({
+      claimedCount: 2,
+      shortCodes: ["code1", "code2"],
+    });
+    expect(localStorage.getItem("history")).toBeNull();
+  });
+
+  it("claimStoredURLs removes history and returns null if all items are expired", async () => {
+    const pastDate = new Date(Date.now() - 1000 * 60 * 60 * 24).toISOString();
+    const storedItems = [
+      {
+        originalURL: "https://example.com/expired",
+        shortURL: "http://localhost:8080/exp-code",
+        expiresAt: pastDate,
+      },
+    ];
+    localStorage.setItem("history", JSON.stringify(storedItems));
+
+    const result = await claimStoredURLs("claim-token");
+    expect(result).toBeNull();
+    expect(localStorage.getItem("history")).toBeNull();
+  });
+
+  it("claimStoredURLs preserves localStorage history when claim request fails", async () => {
+    server.use(
+      http.post(`${baseURL}/api/v1/urls/claim`, () => {
+        return HttpResponse.json({ error: "Server error" }, { status: 500 });
+      }),
+    );
+
+    const storedItems = [
+      { originalURL: "https://example.com/preserve", shortURL: "http://localhost:8080/pres1" },
+    ];
+    localStorage.setItem("history", JSON.stringify(storedItems));
+
+    const consoleSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+    const result = await claimStoredURLs("claim-token");
+    expect(result).toBeNull();
+    expect(localStorage.getItem("history")).not.toBeNull();
+    consoleSpy.mockRestore();
   });
 });

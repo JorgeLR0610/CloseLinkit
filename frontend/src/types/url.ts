@@ -27,3 +27,13 @@ export type URLStats = {
   clickCount: number;
   createdAt: Date;
 };
+
+export type ClaimURLsAPIResponse = {
+  claimed_count: number;
+  short_codes: string[];
+};
+
+export type ClaimURLsResponse = {
+  claimedCount: number;
+  shortCodes: string[];
+};

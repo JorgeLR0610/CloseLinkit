@@ -24,6 +24,7 @@ type URLRepository interface {
 	IncrementClickCount(ctx context.Context, shortCode string) error
 	GetURLsByUserID(ctx context.Context, userID pgtype.UUID) ([]repository.GetURLsByUserIDRow, error)
 	DeleteExpiredURLs(ctx context.Context) error
+	ClaimURLsByShortCodes(ctx context.Context, arg repository.ClaimURLsByShortCodesParams) ([]string, error)
 }
 
 type CreatedURL struct {
@@ -46,6 +47,7 @@ var ErrInvalidURLScheme = errors.New("invalid URL scheme")
 var ErrNoHost = errors.New("invalid host")
 var ErrInvalidURL = errors.New("invalid URL")
 var ErrNoURLFound = errors.New("short URL not found")
+var ErrInvalidUserID = errors.New("invalid user ID")
 
 var ErrCouldNotGenerateUniqueShortCode = errors.New("could not generate unique short code")
 
@@ -199,6 +201,58 @@ func (s *URLService) GetURLsByUserID(ctx context.Context, userID uuid.UUID) ([]U
 	}
 
 	return result, nil
+}
+
+func (s *URLService) ClaimURLs(ctx context.Context, userID uuid.UUID, shortCodes []string) ([]string, error) {
+	if userID == uuid.Nil {
+		return nil, ErrInvalidUserID
+	}
+	if len(shortCodes) == 0 {
+		return []string{}, nil
+	}
+
+	seen := make(map[string]struct{}, len(shortCodes))
+	cleanedCodes := make([]string, 0, len(shortCodes))
+
+	for _, raw := range shortCodes {
+		trimmed := strings.TrimSpace(raw)
+		if trimmed == "" {
+			continue
+		}
+
+		if strings.Contains(trimmed, "/") {
+			trimmed = strings.TrimRight(trimmed, "/")
+			parts := strings.Split(trimmed, "/")
+			trimmed = parts[len(parts)-1]
+			trimmed = strings.TrimSpace(trimmed)
+			if trimmed == "" {
+				continue
+			}
+		}
+
+		if _, exists := seen[trimmed]; !exists {
+			seen[trimmed] = struct{}{}
+			cleanedCodes = append(cleanedCodes, trimmed)
+		}
+	}
+
+	if len(cleanedCodes) == 0 {
+		return []string{}, nil
+	}
+
+	claimed, err := s.repo.ClaimURLsByShortCodes(ctx, repository.ClaimURLsByShortCodesParams{
+		UserID:     pgtype.UUID{Bytes: userID, Valid: true},
+		ShortCodes: cleanedCodes,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("failed to claim URLs: %w", err)
+	}
+
+	if claimed == nil {
+		return []string{}, nil
+	}
+
+	return claimed, nil
 }
 
 func (s *URLService) StartExpiredURLsCleanup(ctx context.Context, interval time.Duration, logger *slog.Logger) {

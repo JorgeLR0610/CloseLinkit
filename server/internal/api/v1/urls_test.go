@@ -25,6 +25,7 @@ type mockURLService struct {
 	ResolveShortCodeFunc func(ctx context.Context, shortCode string) (string, error)
 	GetURLStatsFunc      func(ctx context.Context, shortCode string) (repository.GetURLStatsRow, error)
 	GetURLsByUserIDFunc  func(ctx context.Context, userID uuid.UUID) ([]service.UserURL, error)
+	ClaimURLsFunc        func(ctx context.Context, userID uuid.UUID, shortCodes []string) ([]string, error)
 }
 
 func (m *mockURLService) CreateShortCode(ctx context.Context, originalURL string) (service.CreatedURL, error) {
@@ -51,6 +52,13 @@ func (m *mockURLService) GetURLStats(ctx context.Context, shortCode string) (rep
 func (m *mockURLService) GetURLsByUserID(ctx context.Context, userID uuid.UUID) ([]service.UserURL, error) {
 	if m.GetURLsByUserIDFunc != nil {
 		return m.GetURLsByUserIDFunc(ctx, userID)
+	}
+	return nil, nil
+}
+
+func (m *mockURLService) ClaimURLs(ctx context.Context, userID uuid.UUID, shortCodes []string) ([]string, error) {
+	if m.ClaimURLsFunc != nil {
+		return m.ClaimURLsFunc(ctx, userID, shortCodes)
 	}
 	return nil, nil
 }
@@ -454,6 +462,151 @@ func TestURLHandler_HandlerGetUserURLs(t *testing.T) {
 
 			w := httptest.NewRecorder()
 			handler.HandlerGetUserURLs(w, req)
+
+			if w.Code != tt.expectedStatus {
+				t.Errorf("expected status %d, got %d", tt.expectedStatus, w.Code)
+			}
+
+			if tt.verifyBody != nil {
+				tt.verifyBody(t, w.Body.Bytes())
+			}
+		})
+	}
+}
+
+func TestURLHandler_HandlerClaimURLs(t *testing.T) {
+	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
+	testUserID := uuid.MustParse("550e8400-e29b-41d4-a716-446655440000")
+
+	tests := []struct {
+		name           string
+		authenticated  bool
+		requestBody    string
+		setupMock      func() *mockURLService
+		expectedStatus int
+		verifyBody     func(t *testing.T, body []byte)
+	}{
+		{
+			name:          "Successful claim",
+			authenticated: true,
+			requestBody:   `{"short_codes":["abc1234","def5678"]}`,
+			setupMock: func() *mockURLService {
+				return &mockURLService{
+					ClaimURLsFunc: func(ctx context.Context, userID uuid.UUID, shortCodes []string) ([]string, error) {
+						if userID != testUserID {
+							t.Fatalf("expected userID %v, got %v", testUserID, userID)
+						}
+						return []string{"abc1234", "def5678"}, nil
+					},
+				}
+			},
+			expectedStatus: http.StatusOK,
+			verifyBody: func(t *testing.T, body []byte) {
+				var resp api.ClaimURLsResponse
+				if err := json.Unmarshal(body, &resp); err != nil {
+					t.Fatalf("could not unmarshal response: %v", err)
+				}
+				if resp.ClaimedCount != 2 {
+					t.Errorf("expected ClaimedCount 2, got %d", resp.ClaimedCount)
+				}
+				if len(resp.ShortCodes) != 2 || resp.ShortCodes[0] != "abc1234" || resp.ShortCodes[1] != "def5678" {
+					t.Errorf("unexpected short codes in response: %+v", resp.ShortCodes)
+				}
+			},
+		},
+		{
+			name:          "Successful claim with empty array",
+			authenticated: true,
+			requestBody:   `{"short_codes":[]}`,
+			setupMock: func() *mockURLService {
+				return &mockURLService{
+					ClaimURLsFunc: func(ctx context.Context, userID uuid.UUID, shortCodes []string) ([]string, error) {
+						return []string{}, nil
+					},
+				}
+			},
+			expectedStatus: http.StatusOK,
+			verifyBody: func(t *testing.T, body []byte) {
+				var resp api.ClaimURLsResponse
+				if err := json.Unmarshal(body, &resp); err != nil {
+					t.Fatalf("could not unmarshal response: %v", err)
+				}
+				if resp.ClaimedCount != 0 {
+					t.Errorf("expected ClaimedCount 0, got %d", resp.ClaimedCount)
+				}
+				if resp.ShortCodes == nil || len(resp.ShortCodes) != 0 {
+					t.Errorf("expected empty non-nil ShortCodes, got %+v", resp.ShortCodes)
+				}
+			},
+		},
+		{
+			name:          "Unauthenticated request returns 401",
+			authenticated: false,
+			requestBody:   `{"short_codes":["abc1234"]}`,
+			setupMock: func() *mockURLService {
+				return &mockURLService{}
+			},
+			expectedStatus: http.StatusUnauthorized,
+			verifyBody: func(t *testing.T, body []byte) {
+				var errResp map[string]string
+				if err := json.Unmarshal(body, &errResp); err != nil {
+					t.Fatalf("could not unmarshal error response: %v", err)
+				}
+				if errResp["error"] != "Unauthorized" {
+					t.Errorf("expected error 'Unauthorized', got %v", errResp["error"])
+				}
+			},
+		},
+		{
+			name:          "Invalid JSON returns 400",
+			authenticated: true,
+			requestBody:   `{"short_codes":`,
+			setupMock: func() *mockURLService {
+				return &mockURLService{}
+			},
+			expectedStatus: http.StatusBadRequest,
+			verifyBody:     nil,
+		},
+		{
+			name:          "Unknown field returns 400",
+			authenticated: true,
+			requestBody:   `{"short_codes":["abc1234"],"unknown":"field"}`,
+			setupMock: func() *mockURLService {
+				return &mockURLService{}
+			},
+			expectedStatus: http.StatusBadRequest,
+			verifyBody:     nil,
+		},
+		{
+			name:          "Service error returns 500",
+			authenticated: true,
+			requestBody:   `{"short_codes":["abc1234"]}`,
+			setupMock: func() *mockURLService {
+				return &mockURLService{
+					ClaimURLsFunc: func(ctx context.Context, userID uuid.UUID, shortCodes []string) ([]string, error) {
+						return nil, errors.New("db connection failure")
+					},
+				}
+			},
+			expectedStatus: http.StatusInternalServerError,
+			verifyBody:     nil,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			svc := tt.setupMock()
+			handler := api.NewURLHandler(svc, logger, "http://closelinkit.test")
+
+			req := httptest.NewRequest(http.MethodPost, "/api/v1/urls/claim", bytes.NewBufferString(tt.requestBody))
+			req.Header.Set("Content-Type", "application/json")
+			if tt.authenticated {
+				ctx := service.ContextWithUserID(req.Context(), testUserID)
+				req = req.WithContext(ctx)
+			}
+
+			w := httptest.NewRecorder()
+			handler.HandlerClaimURLs(w, req)
 
 			if w.Code != tt.expectedStatus {
 				t.Errorf("expected status %d, got %d", tt.expectedStatus, w.Code)

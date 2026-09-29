@@ -1,6 +1,7 @@
 import { useEffect, useState, useCallback, type ReactNode } from "react";
 import type { User } from "../types/auth";
 import * as authService from "../services/auth";
+import { claimStoredURLs } from "../services/urls";
 import { AuthContext } from "./AuthContext";
 
 export function AuthProvider({ children }: { children: ReactNode }) {
@@ -16,6 +17,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       try {
         const res = await authService.refreshToken();
         if (isMounted) {
+          try {
+            await claimStoredURLs(res.access_token);
+          } catch {
+            // ignore
+          }
           setAccessToken(res.access_token);
           setUser(res.user);
         }
@@ -40,6 +46,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const login = useCallback(async (email: string, password: string): Promise<void> => {
     const res = await authService.login({ email, password });
+    try {
+      await claimStoredURLs(res.access_token);
+    } catch {
+      // ignore
+    }
     setAccessToken(res.access_token);
     setUser(res.user);
   }, []);
