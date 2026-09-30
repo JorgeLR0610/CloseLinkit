@@ -181,13 +181,6 @@ describe("App Component", () => {
     expect(screen.getByRole("button", { name: "Sign Up" })).toBeInTheDocument();
   });
 
-  it("redirects from /dashboard to /", () => {
-    renderApp("/dashboard");
-
-    expect(screen.getByText("CloseLinkit")).toBeInTheDocument();
-    expect(screen.getByPlaceholderText(/paste your link here/i)).toBeInTheDocument();
-  });
-
   it("loads and displays authenticated user URLs from API on /", async () => {
     const mockURLs = [
       {
