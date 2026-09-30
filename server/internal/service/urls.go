@@ -203,6 +203,25 @@ func (s *URLService) GetURLsByUserID(ctx context.Context, userID uuid.UUID) ([]U
 	return result, nil
 }
 
+func extractShortCode(raw string) string {
+	s := strings.TrimSpace(raw)
+	if s == "" {
+		return ""
+	}
+	if strings.Contains(s, "://") {
+		u, err := url.Parse(s)
+		if err != nil {
+			return ""
+		}
+		s = u.Path // ignore host, query and fragment
+	}
+	s = strings.Trim(s, "/")
+	if i := strings.LastIndex(s, "/"); i >= 0 {
+		s = s[i+1:]
+	}
+	return strings.TrimSpace(s)
+}
+
 func (s *URLService) ClaimURLs(ctx context.Context, userID uuid.UUID, shortCodes []string) ([]string, error) {
 	if userID == uuid.Nil {
 		return nil, ErrInvalidUserID
@@ -215,24 +234,13 @@ func (s *URLService) ClaimURLs(ctx context.Context, userID uuid.UUID, shortCodes
 	cleanedCodes := make([]string, 0, len(shortCodes))
 
 	for _, raw := range shortCodes {
-		trimmed := strings.TrimSpace(raw)
-		if trimmed == "" {
+		code := extractShortCode(raw)
+		if code == "" {
 			continue
 		}
-
-		if strings.Contains(trimmed, "/") {
-			trimmed = strings.TrimRight(trimmed, "/")
-			parts := strings.Split(trimmed, "/")
-			trimmed = parts[len(parts)-1]
-			trimmed = strings.TrimSpace(trimmed)
-			if trimmed == "" {
-				continue
-			}
-		}
-
-		if _, exists := seen[trimmed]; !exists {
-			seen[trimmed] = struct{}{}
-			cleanedCodes = append(cleanedCodes, trimmed)
+		if _, exists := seen[code]; !exists {
+			seen[code] = struct{}{}
+			cleanedCodes = append(cleanedCodes, code)
 		}
 	}
 
