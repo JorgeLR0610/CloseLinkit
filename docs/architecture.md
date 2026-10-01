@@ -61,6 +61,50 @@ Persists application data.
 
 ---
 
+## Authentication
+
+CloseLinkit uses short-lived JWT access tokens and rotating refresh tokens.
+See ADR 0010 for the rationale.
+
+### Flow
+
+```text
+Login / Register
+  Client ── POST /api/v1/auth/login ──▶ API
+  Client ◀── access_token (JSON body) + refresh_token (HttpOnly cookie) ── API
+
+Authenticated request
+  Client ── Authorization: Bearer <access_token> ──▶ API
+
+Session restore / token expiry
+  Client ── POST /api/v1/auth/refresh (cookie sent automatically) ──▶ API
+  Client ◀── new access_token + user + rotated refresh cookie ── API
+
+Logout
+  Client ── POST /api/v1/auth/logout ──▶ API (revokes token, clears cookie)
+```
+
+### Token storage
+- The access token is kept only in memory on the client (never in localStorage).
+- The refresh token is an opaque random value; only its SHA-256 hash is stored in
+  PostgreSQL. The cookie is HttpOnly, Secure, SameSite, scoped to `Path=/api/v1/auth`.
+- Each refresh revokes the used token and issues a new one (rotation).
+- Expired refresh tokens are deleted by an hourly background job.
+
+### Route protection
+| Route | Middleware | Behavior |
+|-------|-----------|----------|
+| `POST /api/v1/shorten` | `OptionalAuth` | Anonymous: URL expires in 7 days. Authenticated: permanent, owned by the user. |
+| `GET /api/v1/urls` | `RequireAuth` | Lists the authenticated user's URLs. |
+| `POST /api/v1/urls/claim` | `RequireAuth` | Transfers anonymous URLs to the user. |
+
+### Claiming anonymous URLs
+Guests keep their links in localStorage (`history`). After login, registration, or
+session restore, the client sends the short codes to `POST /api/v1/urls/claim`. The
+backend assigns ownership only to URLs with no owner and clears their expiration.
+
+---
+
 ## Request Flow
 
 ```text
@@ -90,17 +134,22 @@ The response follows the same path in reverse.
 
 ## Roadmap
 
-### Planned Features
+### Implemented
+- User authentication (JWT + refresh tokens), user accounts, per-user URL listing
+- Anonymous URL expiration and claiming
 
-- Analytics dashboard
+### Planned
+- Link management (delete/edit), analytics per link
 - Custom short URLs
-- User authentication (JWT)
-- User accounts
-- Link management
 
 ## Infrastructure
 
-- Docker image publishing
-- CI/CD pipeline
+### Implemented
+- CI: backend (tests, golangci-lint, govulncheck), frontend (tests, lint, format check),
+  secrets scan.
+- API Docker image published to GHCR on `v*.*.*` tags (`docker-publish.yaml`);
+  pull requests build the image without pushing.
+
+### Planned
 - AWS deployment
 - Kubernetes manifests

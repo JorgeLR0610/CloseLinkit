@@ -1,134 +1,22 @@
-# Current Project State
+# Current State
 
-## Project Overview
+**Version:** v0.2.0 (in progress) · **Branch:** feature/add-auth
+**Stack:** Go + PostgreSQL (Goose, sqlc) + React/TS/Vite. See `docs/architecture.md`.
 
-- **Project Name:** CloseLinkit
-- **Current Version:** v0.2.0
-- **Repository Structure:** Monorepo (`server/`, `frontend/`, `docs/`, `scripts/`, `agent/`)
+## Done
+Auth (register/login/refresh/logout), user URL listing, anonymous URL expiry with
+cleanup jobs, cookie-based refresh, unified `/` view, URL claiming.
+History: `CHANGELOG.md`. Endpoints: `server/docs/openapi.yaml`.
 
----
+## Active task
+Delete user URLs (check TASK.md)
 
-## Architecture & Technology Stack
+## Next steps
+1. Delete user URLs: `DELETE /api/v1/urls/{code}` + UI on `/`.
+2. Edit URLs / per-link analytics.
+3. Custom aliases (open question in `agent/decisions.md`).
+4. Infra: deployment on AWS, Kubernetes manifests.
 
-- **Backend:** Go 1.26.2 (`net/http`, layered architecture: handlers $\rightarrow$ service $\rightarrow$ repository $\rightarrow$ PostgreSQL).
-- **Frontend:** React 19.2.7 + TypeScript + Vite.
-- **Database:** PostgreSQL 18.4 with migrations managed by Goose (`server/db/migrations/`).
-- **SQL Code Generation:** `sqlc` v1.31.1 mapping queries in `server/db/queries/` to `server/internal/repository/`.
-- **Testing & Code Quality Suites:**
-   - **Backend:** Full unit tests (`go test ./... -cover -race`), security scans (`make govulncheck`), and GitHub Actions CI workflow (`backend-ci.yaml`).
-   - **Frontend:** Full unit/integration tests using Vitest, React Testing Library, and MSW (`npm test`), linting (`oxlint`), formatting (`oxfmt`), and GitHub Actions CI workflow (`frontend-ci.yaml`).
-- **Infrastructure:** Docker Compose (`compose.yaml`), GitHub Actions CI/CD workflows.
-
----
-
-## Recent Additions (v0.2.0)
-
-1. **Dependency Maintenance:**
-   - Minor package updates across backend and frontend dependencies.
-
-2. **Database Migrations (Goose):**
-   - `server/db/migrations/001_urls.sql`: Base `urls` table.
-   - `server/db/migrations/002_users.sql`: Created `users` table:
-     - `id UUID PRIMARY KEY DEFAULT gen_random_uuid()`
-     - `created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()`
-     - `updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()`
-     - `email TEXT UNIQUE NOT NULL` (with unique index `idx_users_email` on `LOWER(email)`)
-     - `email_verified_at TIMESTAMPTZ`
-     - `hashed_password TEXT NOT NULL`
-   - `server/db/migrations/003_refresh_tokens.sql`: Created `refresh_tokens` table:
-     - `id UUID PRIMARY KEY`
-     - `user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE`
-     - `token_hash TEXT NOT NULL UNIQUE`
-      - `created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()`
-      - `expires_at TIMESTAMPTZ NOT NULL`
-      - `revoked_at TIMESTAMPTZ`
-      - Index on `user_id` (`idx_refresh_tokens_user_id`)
-    - `server/db/migrations/004_add_user_id_to_urls.sql`:
-      - Added nullable `user_id UUID` column to `urls` table.
-      - Foreign key constraint `user_fk` referencing `users(id)` with `ON DELETE SET NULL`.
-      - Index on `urls.user_id` (`idx_urls_user_id`).
-
-3. **Environment Configuration:**
-   - Added `JWT_SECRET` to `.env` (used for signing and validating JWT access tokens) and placeholder to `.env.example`.
-
-4. **SQL Queries & SQLC Repository Layer (Step 1 & Step 2 Completed):**
-   - Created `server/db/queries/users.sql` (`CreateUser`, `GetUserByEmail`, `GetUserByID`, `UpdateUserPassword`, `MarkEmailVerified`).
-   - Created `server/db/queries/refresh_tokens.sql` (`CreateRefreshToken`, `GetRefreshTokenByHash`, `RevokeRefreshToken`, `RevokeRefreshTokenByID`, `RevokeAllUserRefreshTokens`, `DeleteExpiredTokens`).
-   - Updated `server/db/queries/urls.sql` (`CreateURL` accepts optional `user_id`, added `GetURLsByUserID`).
-   - Regenerated repository code via `make sqlc-generate` in `server/internal/repository/` (`models.go`, `urls.sql.go`, `users.sql.go`, `refresh_tokens.sql.go`).
-
-5. **Authentication Security & Service Layer (Step 3 Completed):**
-   - Created `server/internal/security/password.go` (`HashPassword`, `HashPasswordWithParams`, `VerifyPassword` using Argon2id with OWASP-recommended parameters and constant-time comparison).
-   - Created `server/internal/security/token.go` (JWT access token generation and validation using `golang-jwt/jwt/v5`, cryptographically secure refresh token issuance and SHA-256 hashing).
-   - Created `server/internal/service/auth.go` (`AuthService` and `AuthRepository` interface implementing `Register`, `Login`, `RefreshToken` with rotation, `Logout`, `RevokeAllUserSessions`, and `ValidateAccessToken`).
-   - Added comprehensive unit test suites in `security/` (`password_test.go`, `token_test.go`) and `service/` (`auth_test.go`).
-
-6. **Authentication Handler & Transport Layer (Step 4 Completed):**
-   - Created `server/internal/api/v1/auth.go` (handlers for `POST /api/v1/auth/register`, `POST /api/v1/auth/login`, `POST /api/v1/auth/refresh`, and `POST /api/v1/auth/logout`).
-   - Created `server/internal/middleware/auth.go` (`RequireAuth` and `OptionalAuth` middlewares with context injection of `user_id`).
-   - Updated `server/internal/service/urls.go` to optionally associate the created shortened URL with authenticated users via `UserIDFromContext`.
-   - Wired auth routes and `OptionalAuth` into `server/cmd/CloseLinkit/main.go`.
-   - Added comprehensive unit test suites (`server/internal/api/v1/auth_test.go` and `server/internal/middleware/auth_test.go`).
-
-7. **Testing & Documentation (Step 5 Completed):**
-   - Updated `server/docs/openapi.yaml` to document:
-     - Security scheme: `bearerAuth` (HTTP Bearer JWT).
-     - New endpoints: `POST /api/v1/auth/register`, `POST /api/v1/auth/login`, `POST /api/v1/auth/refresh`, `POST /api/v1/auth/logout`.
-     - Updated `POST /api/v1/shorten` with optional Bearer authentication scheme and updated description.
-     - New component schemas: `RegisterRequest`, `LoginRequest`, `LoginResponse`, `RefreshTokenRequest`, `RefreshTokenResponse`, `LogoutRequest`, `UserResponse`.
-   - Updated `README.md` API Endpoints reference table with authentication endpoints.
-   - Verified OpenAPI embedding and full backend test suite (`go test -count=1 ./... -race`) with all tests passing.
-   - Verified zero vulnerabilities with `make govulncheck`.
-
-8. **User URLs Endpoint (`GET /api/v1/urls`):**
-   - Protected endpoint with `RequireAuth` middleware to retrieve all URLs belonging to the authenticated user.
-   - Utilizes `GetURLsByUserID` (`SELECT original_url, short_code, created_at, click_count FROM urls WHERE user_id = $1 ORDER BY created_at DESC`).
-   - Domain mapping in `URLService.GetURLsByUserID` (`service.UserURL`) ensuring a non-nil slice (`[]UserURL{}`) when empty.
-   - DTO mapping in `URLHandler.HandlerGetUserURLs` (`api.UserURLResponse`) computing full `short_url` (`baseURL + "/" + short_code`).
-   - Fully covered with unit tests in `service/urls_test.go` and `api/v1/urls_test.go`.
-   - Documented in `server/docs/openapi.yaml` and `README.md`.
-
-9. **Periodic Refresh Token Cleanup & Comprehensive Backend Test Suite:**
-   - Implemented `StartRefreshTokenCleanup` in `service.AuthService` running periodically via an hourly background goroutine in `main.go`.
-   - Hardened `StartRefreshTokenCleanup` with defensive checks for nil loggers and non-positive intervals.
-   - Added comprehensive unit tests in `service/auth_test.go` verifying initial execution, periodic ticker execution, error resilience, and graceful context cancellation.
-   - Expanded unit test coverage in `service/urls_test.go` (`ResolveShortCode`, `GetURLStats`, and `isValidHost` IP/domain validation), `service/auth_test.go` (defaults and edge cases), and created `response/json_test.go` (100% coverage).
-   - Backend test coverage across all internal packages is now $\ge 89.1\%$ with 100% tests passing and zero race conditions.
-
-10. **Anonymous URL Expiration (7 Days) & Periodic Cleanup (`StartExpiredURLsCleanup`):**
-    - Added migration `server/db/migrations/005_add_expires_at_column.sql` adding nullable `expires_at TIMESTAMPTZ` with index `idx_urls_expired`.
-    - Updated `CreateURL` in `urls.sql` and `URLService.CreateShortCode` to assign 7-day expiration (`time.Now().Add(7 * 24 * time.Hour)`) for anonymous URLs, while authenticated URLs do not expire (`expires_at IS NULL`).
-    - Updated `GetURL` query in `urls.sql` to filter out expired URLs (`AND (expires_at IS NULL OR expires_at > NOW())`).
-    - Implemented `DeleteExpiredURLs` query and `URLService.StartExpiredURLsCleanup` running periodically every 12 hours via a background goroutine in `main.go`.
-    - Updated `service/urls_test.go` with `DeleteExpiredURLs` repository mock, verified 7-day expiration rule in `TestURLService_CreateShortCode_WithAuthenticatedUser`, and added comprehensive unit tests in `TestURLService_StartExpiredURLsCleanup` (initial execution, ticker periodic execution, error resilience, and graceful context cancellation).
-    - `internal/service` test coverage reached 90.5% with 100% tests passing and zero race conditions.
-
-11. **Refactored `CreateURL` to return `expires_at` throughout the full service stack:**
-    - Updated `server/db/queries/urls.sql` to `RETURNING short_code, expires_at;`.
-    - Regenerated `server/internal/repository/urls.sql.go` via `make sqlc-generate` (`CreateURLRow`).
-    - Updated `URLRepository` interface, defined domain struct `CreatedURL{ ShortCode string, ExpiresAt *time.Time }`, and updated `URLService.CreateShortCode` mapping.
-    - Updated DTO `CreateURLResponse` in `server/internal/api/v1/types.go` (`ExpiresAt *time.Time json:"expires_at"`), and updated `HandlerCreateURL` in `server/internal/api/v1/urls.go`.
-    - Updated `server/docs/openapi.yaml` with `expires_at` (nullable RFC3339 date-time) in `CreateURLResponse` schema.
-    - Updated frontend TypeScript type `ShortenURLAPIResponse` in `frontend/src/types/url.ts` to include `expires_at: string | null`.
-    - Updated unit test suites in `server/internal/service/urls_test.go` and `server/internal/api/v1/urls_test.go`, as well as frontend test mock in `frontend/src/services/urls.test.ts`.
-    - Verified all backend tests (`go test -race -cover`), security scan (`govulncheck`), and frontend verification (`npm test`, `npm run lint`, `npm run build`).
-
----
-
-## Active Task & Next Steps
-
-The backend JWT-based User Authentication milestones are fully completed.
-
-### Next Steps:
-#### Frontend Authentication Integration:
-1. **Set up Routing with `react-router`:**
-   - Configure routes in the frontend application (Main/Home for logged users `/dashboard`, Main/Home for anonymous users `/`, Login `/login`, Sign up `/signup`).
-2. **Build Authentication Pages:**
-   - Create the **Login page/component** (`/login`) with form inputs, validation, and glassmorphic styling aligned with the app's design system.
-   - Create the **Sign Up page/component** (`/signup`) with user registration form fields, error states, and responsive styling.
-3. **Integration & Navigation:**
-   - Add Login and Sign up buttons in both `Header` and `FooterCTA` to link to the new routes.
-  - Auth context and token management (handling access tokens, refresh token rotation, in-memory/secure cookie storage).
-4. **Testing:**
-   - Write comprehensive unit and integration tests using Vitest and React Testing Library for the new authentication pages and routes, maintaining the established 100% test passing baseline.
-
+## Watch out
+- Cleanup goroutines (refresh tokens hourly, expired URLs every 12h) are started in
+  `server/cmd/CloseLinkit/main.go`.
