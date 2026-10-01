@@ -30,6 +30,25 @@ violation.
 
 The current maximum retry count is 5.
 
+### Anonymous URL Expiration
+
+Anonymous URLs get `expires_at = now + 7 days` on creation. Authenticated URLs have
+`expires_at IS NULL`. `GetURL` filters expired rows, and a cleanup job
+(`StartExpiredURLsCleanup`, every 12h) deletes them.
+
+### URL Claiming
+
+`POST /api/v1/urls/claim` runs a single atomic update:
+`WHERE short_code = ANY(...) AND user_id IS NULL`, so URLs owned by someone else are
+never modified. It sets `user_id` and clears `expires_at`. The client removes the
+`history` key from localStorage only after a successful response. Claiming runs on
+login, registration auto-login, and session restore.
+
+### Single Route for Guests and Users
+
+`/` shows localStorage links for guests and API links for authenticated users.
+
 ## Pending Decisions
 
 * Whether custom short URLs should reuse the current short-code generation service.
+* Whether dockerize the frontend to serve the static files with Nginx on EC2 or use S3 + CloudFront.

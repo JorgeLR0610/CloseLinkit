@@ -123,6 +123,7 @@ Below is an overview of the environment variables used across the application:
 | `VITE_API_BASE_URL` | `http://localhost:8080` | API base URL consumed by the Vite React client |
 | `VITE_HOST_PORT` | `5173` | Port on which the React frontend is served on the host |
 | `JWT_SECRET` | `GvD/eXEuby9+cLxQyO767htLeW2xJmxkbBmJMiD2GGs=` | Symmetric key used to sign and verify JWTs (can be generated with bash via ```openssl rand -base64 32```)
+| `COOKIE_SECURE` | `true or false` | Boolan variable to set Secure field value in server's Cookie header
 ## Getting Started
 
 ### Option 1: Automated Setup (only for Linux/macOS)
