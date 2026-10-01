@@ -16,8 +16,8 @@ import (
 
 const (
 	RefreshTokenCookieName = "refresh_token"
-	RefreshTokenCookiePath = "/api/v1/auth"
-	DefaultCookieMaxAge    = 7 * 24 * 3600 // 7 days in seconds
+	RefreshTokenCookiePath = "/api/v1/auth" // #nosec G101 -- false positive
+	DefaultCookieMaxAge    = 7 * 24 * 3600  // 7 days in seconds
 )
 
 type AuthServicer interface {
@@ -54,7 +54,7 @@ func (h *AuthHandler) setRefreshTokenCookie(w http.ResponseWriter, token string)
 		maxAge = int(ttlGetter.RefreshTokenTTL().Seconds())
 	}
 
-	http.SetCookie(w, &http.Cookie{
+	http.SetCookie(w, &http.Cookie{ // #nosec G124 -- Mitigated: Cookie set fields are secure
 		Name:     RefreshTokenCookieName,
 		Value:    token,
 		Path:     RefreshTokenCookiePath,
@@ -66,7 +66,7 @@ func (h *AuthHandler) setRefreshTokenCookie(w http.ResponseWriter, token string)
 }
 
 func (h *AuthHandler) clearRefreshTokenCookie(w http.ResponseWriter) {
-	http.SetCookie(w, &http.Cookie{
+	http.SetCookie(w, &http.Cookie{ // #nosec G124 -- Mitigated: Cookie set fields are secure
 		Name:     RefreshTokenCookieName,
 		Value:    "",
 		Path:     RefreshTokenCookiePath,
