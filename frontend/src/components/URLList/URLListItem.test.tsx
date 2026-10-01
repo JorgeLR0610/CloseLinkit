@@ -1,9 +1,13 @@
 import { render, screen, fireEvent, waitFor } from "@testing-library/react";
-import { describe, it, expect, vi } from "vitest";
+import { describe, it, expect, vi, afterEach } from "vitest";
 import URLListItem from "./URLListItem";
 import * as urlServices from "../../services/urls";
 
 describe("URLListItem Component", () => {
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
   const item = {
     originalURL: "https://example.com/very-long-original-url",
     shortURL: "http://localhost:8080/xyz1234",
@@ -42,24 +46,74 @@ describe("URLListItem Component", () => {
     });
   });
 
-  it("displays pre-populated analytics stats without calling getURLStats", async () => {
-    const getStatsSpy = vi.spyOn(urlServices, "getURLStats");
-    const itemWithStats = {
-      originalURL: "https://example.com/preloaded",
-      shortURL: "http://localhost:8080/preload1",
-      clickCount: 42,
-      createdAt: "2026-09-01T12:00:00Z",
-    };
+  const itemWithStats = {
+    originalURL: "https://example.com/preloaded",
+    shortURL: "http://localhost:8080/preload1",
+    clickCount: 42,
+    createdAt: "2026-09-01T12:00:00Z",
+  };
+
+  it("refreshes pre-populated stats from the API when the panel is opened", async () => {
+    const getStatsSpy = vi.spyOn(urlServices, "getURLStats").mockResolvedValue({
+      originalURL: itemWithStats.originalURL,
+      clickCount: 50,
+      createdAt: new Date("2026-09-01T12:00:00Z"),
+    });
 
     render(<URLListItem item={itemWithStats} />);
+    fireEvent.click(screen.getByRole("button", { name: "Analytics" }));
 
-    const analyticsButton = screen.getByRole("button", { name: "Analytics" });
-    fireEvent.click(analyticsButton);
+    expect(await screen.findByText("50")).toBeInTheDocument();
+    expect(screen.queryByText("42")).not.toBeInTheDocument();
+    expect(getStatsSpy).toHaveBeenCalledTimes(1);
+  });
 
-    await waitFor(() => {
-      expect(screen.getByText("Total Clicks")).toBeInTheDocument();
-      expect(screen.getByText("42")).toBeInTheDocument();
-      expect(getStatsSpy).not.toHaveBeenCalled();
-    });
+  it("shows pre-populated stats when the refresh request fails", async () => {
+    vi.spyOn(urlServices, "getURLStats").mockRejectedValue(new Error("network"));
+
+    render(<URLListItem item={itemWithStats} />);
+    fireEvent.click(screen.getByRole("button", { name: "Analytics" }));
+
+    expect(await screen.findByText("42")).toBeInTheDocument();
+  });
+
+  it("does not open the panel when there are no stats and the request fails", async () => {
+    const getStatsSpy = vi
+      .spyOn(urlServices, "getURLStats")
+      .mockRejectedValue(new Error("network"));
+
+    render(<URLListItem item={item} />);
+    fireEvent.click(screen.getByRole("button", { name: "Analytics" }));
+
+    await waitFor(() => expect(getStatsSpy).toHaveBeenCalledTimes(1));
+    expect(screen.queryByText("Total Clicks")).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Analytics" })).toBeInTheDocument();
+  });
+
+  it("requests fresh stats every time the panel is opened", async () => {
+    const getStatsSpy = vi
+      .spyOn(urlServices, "getURLStats")
+      .mockResolvedValueOnce({
+        originalURL: item.originalURL,
+        clickCount: 1,
+        createdAt: new Date("2026-08-10T15:30:00Z"),
+      })
+      .mockResolvedValueOnce({
+        originalURL: item.originalURL,
+        clickCount: 2,
+        createdAt: new Date("2026-08-10T15:30:00Z"),
+      });
+
+    render(<URLListItem item={item} />);
+
+    fireEvent.click(screen.getByRole("button", { name: "Analytics" }));
+    expect(await screen.findByText("1")).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "Shrink" }));
+    expect(screen.queryByText("Total Clicks")).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "Analytics" }));
+    expect(await screen.findByText("2")).toBeInTheDocument();
+    expect(getStatsSpy).toHaveBeenCalledTimes(2);
   });
 });

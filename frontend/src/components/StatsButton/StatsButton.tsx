@@ -21,17 +21,20 @@ export default function StatsButton({
   stats,
 }: Props) {
   const handleStatsDisplay = async () => {
-    if (!displayedStats && !stats) {
-      try {
-        const resp = await getURLStats(shortURL);
-        setStats(resp);
-      } catch {
+    if (displayedStats) {
+      setDisplayedStats(false);
+      return;
+    }
+
+    try {
+      setStats(await getURLStats(shortURL));
+    } catch {
+      if (!stats) {
         toast.error("Could not load stats. Please try again later.");
         return;
       }
     }
-
-    setDisplayedStats((prev) => !prev);
+    setDisplayedStats(true);
   };
 
   return (
