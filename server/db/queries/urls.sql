@@ -35,3 +35,6 @@ SET user_id = $1, expires_at = NULL
 WHERE short_code = ANY(@short_codes::text[]) AND user_id IS NULL
 RETURNING short_code;
 
+-- name: DeleteURLByShortCode :execrows
+DELETE FROM urls
+WHERE short_code = $1 AND user_id = $2;

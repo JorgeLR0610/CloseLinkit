@@ -151,6 +151,15 @@ func main() {
 		),
 	)
 
+	mux.Handle(
+		"DELETE /api/v1/urls/{shortCode}",
+		middleware.RequestLogging(logger)(
+			middleware.RequireAuth(authSvc, logger)(
+				http.HandlerFunc(urlsHandler.HandlerDeleteURL),
+			),
+		),
+	)
+
 	// Auth endpoints
 	mux.Handle(
 		"POST /api/v1/auth/register",

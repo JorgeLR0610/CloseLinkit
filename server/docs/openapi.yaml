@@ -247,6 +247,42 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
+  /api/v1/urls/{shortCode}:
+    delete:
+      summary: Delete a shortened URL
+      description: Deletes a shortened URL owned by the authenticated user.
+      tags:
+        - URLs
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: shortCode
+          in: path
+          required: true
+          schema:
+            type: string
+          example: aB3dE1z
+      responses:
+        "204":
+          description: URL successfully deleted
+        "401":
+          description: Missing, invalid, or expired authorization token
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Short URL not found or not owned by the user
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
   /{shortCode}:
     get:
       summary: Redirect to the original URL

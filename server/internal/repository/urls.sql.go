@@ -83,6 +83,24 @@ func (q *Queries) DeleteExpiredURLs(ctx context.Context) error {
 	return err
 }
 
+const deleteURLByShortCode = `-- name: DeleteURLByShortCode :execrows
+DELETE FROM urls
+WHERE short_code = $1 AND user_id = $2
+`
+
+type DeleteURLByShortCodeParams struct {
+	ShortCode string
+	UserID    pgtype.UUID
+}
+
+func (q *Queries) DeleteURLByShortCode(ctx context.Context, arg DeleteURLByShortCodeParams) (int64, error) {
+	result, err := q.db.Exec(ctx, deleteURLByShortCode, arg.ShortCode, arg.UserID)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
 const getURL = `-- name: GetURL :one
 SELECT original_url
 FROM urls 
