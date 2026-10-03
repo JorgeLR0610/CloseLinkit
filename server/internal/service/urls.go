@@ -25,6 +25,7 @@ type URLRepository interface {
 	GetURLsByUserID(ctx context.Context, userID pgtype.UUID) ([]repository.GetURLsByUserIDRow, error)
 	DeleteExpiredURLs(ctx context.Context) error
 	ClaimURLsByShortCodes(ctx context.Context, arg repository.ClaimURLsByShortCodesParams) ([]string, error)
+	DeleteURLByShortCode(ctx context.Context, arg repository.DeleteURLByShortCodeParams) (int64, error)
 }
 
 type CreatedURL struct {
@@ -296,4 +297,25 @@ func (s *URLService) StartExpiredURLsCleanup(ctx context.Context, interval time.
 			}
 		}
 	}
+}
+
+func (s *URLService) DeleteURLByShortCode(ctx context.Context, shortCode string, userID uuid.UUID) error {
+	if userID == uuid.Nil {
+		return ErrInvalidUserID
+	}
+
+	rows, err := s.repo.DeleteURLByShortCode(ctx, repository.DeleteURLByShortCodeParams{
+		ShortCode: strings.TrimSpace(shortCode),
+		UserID:    pgtype.UUID{Bytes: userID, Valid: true},
+	})
+
+	if err != nil {
+		return fmt.Errorf("could not delete URL: %w", err)
+	}
+
+	if rows == 0 {
+		return ErrNoURLFound
+	}
+
+	return nil
 }
