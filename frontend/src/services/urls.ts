@@ -107,3 +107,13 @@ export async function claimStoredURLs(accessToken: string): Promise<ClaimURLsRes
     return null;
   }
 }
+
+export async function deleteURL(shortCode: string, accessToken: string): Promise<void> {
+  const code = shortCode.split("/").pop() || shortCode;
+  await request<void>(`/api/v1/urls/${encodeURIComponent(code)}`, {
+    method: "DELETE",
+    headers: {
+      Authorization: `Bearer ${accessToken}`,
+    },
+  });
+}

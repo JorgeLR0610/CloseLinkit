@@ -116,4 +116,43 @@ describe("URLListItem Component", () => {
     expect(await screen.findByText("2")).toBeInTheDocument();
     expect(getStatsSpy).toHaveBeenCalledTimes(2);
   });
+
+  it("does not render Delete button when onDelete is not provided", () => {
+    render(<URLListItem item={item} />);
+    expect(screen.queryByRole("button", { name: /delete/i })).not.toBeInTheDocument();
+  });
+
+  it("renders Delete button when onDelete is provided and calls onDelete on click", async () => {
+    const onDeleteMock = vi.fn().mockResolvedValue(undefined);
+    render(<URLListItem item={item} onDelete={onDeleteMock} />);
+
+    const deleteBtn = screen.getByRole("button", { name: /delete/i });
+    expect(deleteBtn).toBeInTheDocument();
+
+    fireEvent.click(deleteBtn);
+    expect(onDeleteMock).toHaveBeenCalledWith(item.shortURL);
+    await waitFor(() => {
+      expect(deleteBtn).not.toBeDisabled();
+    });
+  });
+
+  it("disables Delete button while deletion is pending", async () => {
+    let resolveDelete: () => void = () => {};
+    const pendingPromise = new Promise<void>((resolve) => {
+      resolveDelete = resolve;
+    });
+    const onDeleteMock = vi.fn().mockReturnValue(pendingPromise);
+
+    render(<URLListItem item={item} onDelete={onDeleteMock} />);
+    const deleteBtn = screen.getByRole("button", { name: /delete/i });
+
+    fireEvent.click(deleteBtn);
+    expect(deleteBtn).toBeDisabled();
+    expect(screen.getByRole("button", { name: /deleting/i })).toBeInTheDocument();
+
+    resolveDelete();
+    await waitFor(() => {
+      expect(deleteBtn).not.toBeDisabled();
+    });
+  });
 });

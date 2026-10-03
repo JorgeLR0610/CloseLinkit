@@ -6,10 +6,12 @@ import type { URLStats, URLItem } from "../../types/url";
 
 interface Props {
   item: URLItem;
+  onDelete?: (shortURL: string) => Promise<void> | void;
 }
 
-export default function URLListItem({ item }: Props) {
+export default function URLListItem({ item, onDelete }: Props) {
   const [displayedStats, setDisplayedStats] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
   const [stats, setStats] = useState<URLStats | null>(() => {
     if (item.clickCount !== undefined && item.createdAt) {
       return {
@@ -27,6 +29,16 @@ export default function URLListItem({ item }: Props) {
         timeStyle: "short",
       })
     : "";
+
+  const handleDelete = async () => {
+    if (!onDelete || isDeleting) return;
+    setIsDeleting(true);
+    try {
+      await onDelete(item.shortURL);
+    } finally {
+      setIsDeleting(false);
+    }
+  };
 
   return (
     <div className="url-item glass-panel">
@@ -52,6 +64,18 @@ export default function URLListItem({ item }: Props) {
             setStats={setStats}
             stats={stats}
           />
+
+          {onDelete && (
+            <button
+              type="button"
+              onClick={handleDelete}
+              disabled={isDeleting}
+              className="util-btns-small btn-delete"
+              aria-label={isDeleting ? "Deleting URL" : "Delete URL"}
+            >
+              {isDeleting ? "Deleting..." : "Delete"}
+            </button>
+          )}
         </div>
       </div>
 
