@@ -16,6 +16,7 @@ import (
 	"github.com/JorgeLR0610/CloseLinkit/internal/service"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/swaggest/swgui/v5emb"
+	"golang.org/x/time/rate"
 )
 
 func main() {
@@ -46,9 +47,27 @@ func main() {
 		os.Exit(1)
 	}
 
-	// shortenRateLimiter middleware
-	shortenRateLimiter := middleware.NewIPRateLimiter(1, 5, 15*time.Minute, 10*time.Minute)
-	statsRateLimiter := middleware.NewIPRateLimiter(5, 10, 5*time.Minute, 2*time.Minute)
+	// Rate limiter middlewares
+	shortenRateLimiter := middleware.NewIPRateLimiter(
+		rate.Every(5*time.Second),
+		5,
+		15*time.Minute,
+		2*time.Minute,
+	)
+
+	statsRateLimiter := middleware.NewIPRateLimiter(
+		rate.Every(1*time.Second),
+		10,
+		10*time.Minute,
+		2*time.Minute,
+	)
+
+	loginRateLimiter := middleware.NewIPRateLimiter(
+		rate.Every(30*time.Second),
+		5,
+		30*time.Minute,
+		1*time.Minute,
+	)
 
 	ctx := context.Background()
 
@@ -121,7 +140,9 @@ func main() {
 		"GET /api/v1/{shortCode}/stats",
 		middleware.RequestLogging(logger)(
 			middleware.RateLimiting(statsRateLimiter, logger)(
-				http.HandlerFunc(urlsHandler.HandlerGetURLStats),
+				middleware.RequireAuth(authSvc, logger)(
+					http.HandlerFunc(urlsHandler.HandlerGetURLStats),
+				),
 			),
 		),
 	)
@@ -171,7 +192,9 @@ func main() {
 	mux.Handle(
 		"POST /api/v1/auth/login",
 		middleware.RequestLogging(logger)(
-			http.HandlerFunc(authHandler.HandlerLogin),
+			middleware.RateLimiting(loginRateLimiter, logger)(
+				http.HandlerFunc(authHandler.HandlerLogin),
+			),
 		),
 	)
 

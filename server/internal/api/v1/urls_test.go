@@ -275,16 +275,20 @@ func TestURLHandler_HandlerGetURL(t *testing.T) {
 
 func TestURLHandler_HandlerGetURLStats(t *testing.T) {
 	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
+	testUserID := uuid.MustParse("550e8400-e29b-41d4-a716-446655440000")
 
 	tests := []struct {
 		name           string
+		authenticated  bool
 		shortCode      string
 		setupMock      func() *mockURLService
 		expectedStatus int
+		verifyBody     func(t *testing.T, body []byte)
 	}{
 		{
-			name:      "Existing shortcode",
-			shortCode: "abcdef",
+			name:          "Existing shortcode when authenticated returns 200",
+			authenticated: true,
+			shortCode:     "abcdef",
 			setupMock: func() *mockURLService {
 				return &mockURLService{
 					GetURLStatsFunc: func(ctx context.Context, shortCode string) (repository.GetURLStatsRow, error) {
@@ -296,10 +300,20 @@ func TestURLHandler_HandlerGetURLStats(t *testing.T) {
 				}
 			},
 			expectedStatus: http.StatusOK,
+			verifyBody: func(t *testing.T, body []byte) {
+				var resp api.GetURLStatsResponse
+				if err := json.Unmarshal(body, &resp); err != nil {
+					t.Fatalf("could not unmarshal response: %v", err)
+				}
+				if resp.ClickCount != 10 {
+					t.Errorf("expected response to have populated fields correctly, got: %+v", resp)
+				}
+			},
 		},
 		{
-			name:      "Non-existing shortcode",
-			shortCode: "notfnd",
+			name:          "Non-existing shortcode when authenticated returns 404",
+			authenticated: true,
+			shortCode:     "notfnd",
 			setupMock: func() *mockURLService {
 				return &mockURLService{
 					GetURLStatsFunc: func(ctx context.Context, shortCode string) (repository.GetURLStatsRow, error) {
@@ -308,6 +322,55 @@ func TestURLHandler_HandlerGetURLStats(t *testing.T) {
 				}
 			},
 			expectedStatus: http.StatusNotFound,
+			verifyBody: func(t *testing.T, body []byte) {
+				var errResp map[string]string
+				if err := json.Unmarshal(body, &errResp); err != nil {
+					t.Fatalf("could not unmarshal error response: %v", err)
+				}
+				if errResp["error"] != "Sorry, we did not found the page you are looking for" {
+					t.Errorf("expected error not found, got %q", errResp["error"])
+				}
+			},
+		},
+		{
+			name:          "Unauthenticated request returns 401",
+			authenticated: false,
+			shortCode:     "abcdef",
+			setupMock: func() *mockURLService {
+				return &mockURLService{}
+			},
+			expectedStatus: http.StatusUnauthorized,
+			verifyBody: func(t *testing.T, body []byte) {
+				var errResp map[string]string
+				if err := json.Unmarshal(body, &errResp); err != nil {
+					t.Fatalf("could not unmarshal error response: %v", err)
+				}
+				if errResp["error"] != "Unauthorized" {
+					t.Errorf("expected error 'Unauthorized', got %q", errResp["error"])
+				}
+			},
+		},
+		{
+			name:          "Service error returns 500",
+			authenticated: true,
+			shortCode:     "abcdef",
+			setupMock: func() *mockURLService {
+				return &mockURLService{
+					GetURLStatsFunc: func(ctx context.Context, shortCode string) (repository.GetURLStatsRow, error) {
+						return repository.GetURLStatsRow{}, errors.New("db error")
+					},
+				}
+			},
+			expectedStatus: http.StatusInternalServerError,
+			verifyBody: func(t *testing.T, body []byte) {
+				var errResp map[string]string
+				if err := json.Unmarshal(body, &errResp); err != nil {
+					t.Fatalf("could not unmarshal error response: %v", err)
+				}
+				if errResp["error"] != api.InternalErrorMsg {
+					t.Errorf("expected error %q, got %q", api.InternalErrorMsg, errResp["error"])
+				}
+			},
 		},
 	}
 
@@ -318,22 +381,20 @@ func TestURLHandler_HandlerGetURLStats(t *testing.T) {
 
 			req := httptest.NewRequest(http.MethodGet, "/api/v1/"+tt.shortCode+"/stats", nil)
 			req.SetPathValue("shortCode", tt.shortCode)
-			w := httptest.NewRecorder()
+			if tt.authenticated {
+				ctx := service.ContextWithUserID(req.Context(), testUserID)
+				req = req.WithContext(ctx)
+			}
 
+			w := httptest.NewRecorder()
 			handler.HandlerGetURLStats(w, req)
 
 			if w.Code != tt.expectedStatus {
 				t.Errorf("expected status %d, got %d", tt.expectedStatus, w.Code)
 			}
 
-			if w.Code == http.StatusOK {
-				var resp api.GetURLStatsResponse
-				if err := json.Unmarshal(w.Body.Bytes(), &resp); err != nil {
-					t.Fatalf("could not unmarshal response: %v", err)
-				}
-				if resp.ClickCount != 10 {
-					t.Errorf("expected response to have populated fields correctly, got: %+v", resp)
-				}
+			if tt.verifyBody != nil {
+				tt.verifyBody(t, w.Body.Bytes())
 			}
 		})
 	}

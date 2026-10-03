@@ -126,6 +126,11 @@ func (h *URLHandler) HandlerResolveShortURL(w http.ResponseWriter, r *http.Reque
 }
 
 func (h *URLHandler) HandlerGetURLStats(w http.ResponseWriter, r *http.Request) {
+	if _, ok := service.UserIDFromContext(r.Context()); !ok {
+		h.writeErrorLogged(w, http.StatusUnauthorized, "Unauthorized")
+		return
+	}
+
 	shortCode := r.PathValue("shortCode")
 
 	stats, err := h.service.GetURLStats(r.Context(), shortCode)
