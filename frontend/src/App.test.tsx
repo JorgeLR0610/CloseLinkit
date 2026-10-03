@@ -422,4 +422,143 @@ describe("App Component", () => {
       expect(screen.getByText("http://localhost:8080/anon456")).toBeInTheDocument();
     });
   });
+
+  it("allows authenticated user to delete their URL, calling deleteURL and updating the list without page reload", async () => {
+    const mockURLs = [
+      {
+        original_url: "https://example.com/link-1",
+        short_code: "code1",
+        short_url: "http://localhost:8080/code1",
+        created_at: "2026-09-20T10:00:00Z",
+        click_count: 5,
+      },
+      {
+        original_url: "https://example.com/link-2",
+        short_code: "code2",
+        short_url: "http://localhost:8080/code2",
+        created_at: "2026-09-21T10:00:00Z",
+        click_count: 2,
+      },
+    ];
+
+    vi.spyOn(AuthContextModule, "useAuth").mockReturnValue({
+      user: { id: "123", email: "user@example.com", created_at: "" },
+      accessToken: "user-jwt-token",
+      isLoading: false,
+      isAuthenticated: true,
+      login: vi.fn(),
+      register: vi.fn(),
+      logout: vi.fn(),
+    });
+    vi.spyOn(authService, "getUserURLs").mockResolvedValue(mockURLs);
+    const deleteSpy = vi.spyOn(urlServices, "deleteURL").mockResolvedValue(undefined);
+
+    renderApp("/");
+
+    await waitFor(() => {
+      expect(screen.getByText("https://example.com/link-1")).toBeInTheDocument();
+      expect(screen.getByText("https://example.com/link-2")).toBeInTheDocument();
+    });
+
+    const deleteButtons = screen.getAllByRole("button", { name: /delete/i });
+    expect(deleteButtons).toHaveLength(2);
+
+    fireEvent.click(deleteButtons[0]);
+
+    await waitFor(() => {
+      expect(deleteSpy).toHaveBeenCalledWith("code1", "user-jwt-token");
+      expect(screen.queryByText("https://example.com/link-1")).not.toBeInTheDocument();
+      expect(screen.getByText("https://example.com/link-2")).toBeInTheDocument();
+    });
+  });
+
+  it("handles deleteURL 404 error (not owned or nonexistent) by displaying toast and keeping item", async () => {
+    const mockURLs = [
+      {
+        original_url: "https://example.com/link-1",
+        short_code: "code1",
+        short_url: "http://localhost:8080/code1",
+        created_at: "2026-09-20T10:00:00Z",
+        click_count: 5,
+      },
+    ];
+
+    vi.spyOn(AuthContextModule, "useAuth").mockReturnValue({
+      user: { id: "123", email: "user@example.com", created_at: "" },
+      accessToken: "user-jwt-token",
+      isLoading: false,
+      isAuthenticated: true,
+      login: vi.fn(),
+      register: vi.fn(),
+      logout: vi.fn(),
+    });
+    vi.spyOn(authService, "getUserURLs").mockResolvedValue(mockURLs);
+    vi.spyOn(urlServices, "deleteURL").mockRejectedValue(new Error("Not found"));
+
+    renderApp("/");
+
+    await waitFor(() => {
+      expect(screen.getByText("https://example.com/link-1")).toBeInTheDocument();
+    });
+
+    const deleteBtn = screen.getByRole("button", { name: /delete/i });
+    fireEvent.click(deleteBtn);
+
+    await waitFor(() => {
+      expect(toast.error).toHaveBeenCalledWith("Not found");
+      expect(screen.getByText("https://example.com/link-1")).toBeInTheDocument();
+    });
+  });
+
+  it("handles deleteURL 401 error (unauthorized) by displaying toast and keeping item", async () => {
+    const mockURLs = [
+      {
+        original_url: "https://example.com/link-1",
+        short_code: "code1",
+        short_url: "http://localhost:8080/code1",
+        created_at: "2026-09-20T10:00:00Z",
+        click_count: 5,
+      },
+    ];
+
+    vi.spyOn(AuthContextModule, "useAuth").mockReturnValue({
+      user: { id: "123", email: "user@example.com", created_at: "" },
+      accessToken: "user-jwt-token",
+      isLoading: false,
+      isAuthenticated: true,
+      login: vi.fn(),
+      register: vi.fn(),
+      logout: vi.fn(),
+    });
+    vi.spyOn(authService, "getUserURLs").mockResolvedValue(mockURLs);
+    vi.spyOn(urlServices, "deleteURL").mockRejectedValue(new Error("Unauthorized"));
+
+    renderApp("/");
+
+    await waitFor(() => {
+      expect(screen.getByText("https://example.com/link-1")).toBeInTheDocument();
+    });
+
+    const deleteBtn = screen.getByRole("button", { name: /delete/i });
+    fireEvent.click(deleteBtn);
+
+    await waitFor(() => {
+      expect(toast.error).toHaveBeenCalledWith("Unauthorized");
+      expect(screen.getByText("https://example.com/link-1")).toBeInTheDocument();
+    });
+  });
+
+  it("does not show delete buttons for guest users with links in localStorage", () => {
+    localStorage.setItem(
+      "history",
+      JSON.stringify([
+        { originalURL: "https://example.com/guest-1", shortURL: "http://localhost:8080/g1" },
+      ]),
+    );
+
+    renderApp("/");
+
+    expect(screen.getByText("https://example.com/guest-1")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /delete/i })).not.toBeInTheDocument();
+  });
 });

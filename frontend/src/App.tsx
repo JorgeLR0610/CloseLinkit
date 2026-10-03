@@ -10,7 +10,7 @@ import SignupPage from "./pages/SignupPage/SignupPage";
 import "./App.css";
 import type { URLItem } from "./types/url";
 import type { UserURLItem } from "./types/auth";
-import { shortenURL } from "./services/urls";
+import { shortenURL, deleteURL } from "./services/urls";
 import { getUserURLs } from "./services/auth";
 import { useAuth } from "./context/useAuth";
 import toast from "react-hot-toast";
@@ -113,6 +113,27 @@ export function HomePage() {
     }
   };
 
+  const handleDeleteURL = async (shortURL: string): Promise<void> => {
+    if (!isAuthenticated || !accessToken) {
+      toast.error("Unauthorized");
+      return;
+    }
+
+    const shortCode = shortURL.split("/").pop() || shortURL;
+
+    try {
+      await deleteURL(shortCode, accessToken);
+      setUserURLs((prev) =>
+        prev.filter((u) => u.short_url !== shortURL && u.short_code !== shortCode),
+      );
+      if (recentURL === shortURL) {
+        setRecentURL(null);
+      }
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Failed to delete URL");
+    }
+  };
+
   const displayHistory: URLItem[] = isAuthenticated
     ? userURLs.map((u) => ({
         originalURL: u.original_url,
@@ -128,7 +149,12 @@ export function HomePage() {
       <main className="main-content">
         <HeroSection onShorten={handleShortenURL} />
         {recentURL && <RecentURLBox shortURL={recentURL} />}
-        {displayHistory.length > 0 && <URLList history={displayHistory} />}
+        {displayHistory.length > 0 && (
+          <URLList
+            history={displayHistory}
+            onDelete={isAuthenticated ? handleDeleteURL : undefined}
+          />
+        )}
       </main>
       <FooterCTA />
     </>

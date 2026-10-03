@@ -17,4 +17,16 @@ describe("URLList Component", () => {
     expect(screen.getByText("https://example.com/one")).toBeInTheDocument();
     expect(screen.getByText("https://example.com/two")).toBeInTheDocument();
   });
+
+  it("renders delete buttons for items when onDelete is passed", () => {
+    const history = [
+      { originalURL: "https://example.com/one", shortURL: "http://localhost:8080/aaa" },
+      { originalURL: "https://example.com/two", shortURL: "http://localhost:8080/bbb" },
+    ];
+
+    render(<URLList history={history} onDelete={() => {}} />);
+
+    const deleteButtons = screen.getAllByRole("button", { name: /delete/i });
+    expect(deleteButtons).toHaveLength(2);
+  });
 });

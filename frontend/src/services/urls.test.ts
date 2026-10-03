@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeAll, afterAll, afterEach, vi } from "vitest";
 import { http, HttpResponse } from "msw";
 import { setupServer } from "msw/node";
-import { shortenURL, getURLStats, claimURLs, claimStoredURLs } from "./urls";
+import { shortenURL, getURLStats, claimURLs, claimStoredURLs, deleteURL } from "./urls";
 
 const baseURL = import.meta.env.VITE_API_BASE_URL || "";
 
@@ -172,5 +172,56 @@ describe("urls service", () => {
     expect(result).toBeNull();
     expect(localStorage.getItem("history")).not.toBeNull();
     consoleSpy.mockRestore();
+  });
+
+  it("deleteURL sends DELETE request with Authorization header and handles 204 No Content", async () => {
+    let capturedAuthHeader: string | null = null;
+    let capturedCode: string | null = null;
+
+    server.use(
+      http.delete(`${baseURL}/api/v1/urls/:shortCode`, ({ request, params }) => {
+        capturedAuthHeader = request.headers.get("Authorization");
+        capturedCode = params.shortCode as string;
+        return new HttpResponse(null, { status: 204 });
+      }),
+    );
+
+    await expect(deleteURL("myCode123", "test-access-token")).resolves.toBeUndefined();
+    expect(capturedAuthHeader).toBe("Bearer test-access-token");
+    expect(capturedCode).toBe("myCode123");
+  });
+
+  it("deleteURL extracts short code from full short URL", async () => {
+    let capturedCode: string | null = null;
+
+    server.use(
+      http.delete(`${baseURL}/api/v1/urls/:shortCode`, ({ params }) => {
+        capturedCode = params.shortCode as string;
+        return new HttpResponse(null, { status: 204 });
+      }),
+    );
+
+    await deleteURL("http://localhost:8080/extractedCode", "test-access-token");
+    expect(capturedCode).toBe("extractedCode");
+  });
+
+  it("deleteURL throws error on 404 Not Found response", async () => {
+    server.use(
+      http.delete(`${baseURL}/api/v1/urls/:shortCode`, () => {
+        return HttpResponse.json({ error: "Not found" }, { status: 404 });
+      }),
+    );
+
+    await expect(deleteURL("missingCode", "test-access-token")).rejects.toThrow("Not found");
+  });
+
+  it("deleteURL throws error on 401 Unauthorized response", async () => {
+    server.use(
+      http.delete(`${baseURL}/api/v1/urls/:shortCode`, () => {
+        return HttpResponse.json({ error: "Unauthorized" }, { status: 401 });
+      }),
+    );
+
+    await expect(deleteURL("anyCode", "invalid-token")).rejects.toThrow("Unauthorized");
   });
 });
