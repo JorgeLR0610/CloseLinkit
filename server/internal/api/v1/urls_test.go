@@ -21,11 +21,12 @@ import (
 
 // mockURLService implements api.URLServicer
 type mockURLService struct {
-	CreateShortCodeFunc  func(ctx context.Context, originalURL string) (service.CreatedURL, error)
-	ResolveShortCodeFunc func(ctx context.Context, shortCode string) (string, error)
-	GetURLStatsFunc      func(ctx context.Context, shortCode string) (repository.GetURLStatsRow, error)
-	GetURLsByUserIDFunc  func(ctx context.Context, userID uuid.UUID) ([]service.UserURL, error)
-	ClaimURLsFunc        func(ctx context.Context, userID uuid.UUID, shortCodes []string) ([]string, error)
+	CreateShortCodeFunc      func(ctx context.Context, originalURL string) (service.CreatedURL, error)
+	ResolveShortCodeFunc     func(ctx context.Context, shortCode string) (string, error)
+	GetURLStatsFunc          func(ctx context.Context, shortCode string) (repository.GetURLStatsRow, error)
+	GetURLsByUserIDFunc      func(ctx context.Context, userID uuid.UUID) ([]service.UserURL, error)
+	ClaimURLsFunc            func(ctx context.Context, userID uuid.UUID, shortCodes []string) ([]string, error)
+	DeleteURLByShortCodeFunc func(ctx context.Context, shortCode string, userID uuid.UUID) error
 }
 
 func (m *mockURLService) CreateShortCode(ctx context.Context, originalURL string) (service.CreatedURL, error) {
@@ -61,6 +62,13 @@ func (m *mockURLService) ClaimURLs(ctx context.Context, userID uuid.UUID, shortC
 		return m.ClaimURLsFunc(ctx, userID, shortCodes)
 	}
 	return nil, nil
+}
+
+func (m *mockURLService) DeleteURLByShortCode(ctx context.Context, shortCode string, userID uuid.UUID) error {
+	if m.DeleteURLByShortCodeFunc != nil {
+		return m.DeleteURLByShortCodeFunc(ctx, shortCode, userID)
+	}
+	return nil
 }
 
 func TestURLHandler_HandlerCreateURL(t *testing.T) {
@@ -607,6 +615,132 @@ func TestURLHandler_HandlerClaimURLs(t *testing.T) {
 
 			w := httptest.NewRecorder()
 			handler.HandlerClaimURLs(w, req)
+
+			if w.Code != tt.expectedStatus {
+				t.Errorf("expected status %d, got %d", tt.expectedStatus, w.Code)
+			}
+
+			if tt.verifyBody != nil {
+				tt.verifyBody(t, w.Body.Bytes())
+			}
+		})
+	}
+}
+
+func TestURLHandler_HandlerDeleteURL(t *testing.T) {
+	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
+	testUserID := uuid.MustParse("550e8400-e29b-41d4-a716-446655440000")
+
+	tests := []struct {
+		name           string
+		authenticated  bool
+		shortCode      string
+		setupMock      func() *mockURLService
+		expectedStatus int
+		verifyBody     func(t *testing.T, body []byte)
+	}{
+		{
+			name:          "Successful delete returns 204",
+			authenticated: true,
+			shortCode:     "myCode",
+			setupMock: func() *mockURLService {
+				return &mockURLService{
+					DeleteURLByShortCodeFunc: func(ctx context.Context, shortCode string, userID uuid.UUID) error {
+						if shortCode != "myCode" {
+							t.Fatalf("expected shortCode 'myCode', got %q", shortCode)
+						}
+						if userID != testUserID {
+							t.Fatalf("expected userID %v, got %v", testUserID, userID)
+						}
+						return nil
+					},
+				}
+			},
+			expectedStatus: http.StatusNoContent,
+			verifyBody: func(t *testing.T, body []byte) {
+				if len(body) != 0 {
+					t.Errorf("expected empty body for 204 No Content, got %q", string(body))
+				}
+			},
+		},
+		{
+			name:          "Deleting URL not owned or not found returns 404",
+			authenticated: true,
+			shortCode:     "otherCode",
+			setupMock: func() *mockURLService {
+				return &mockURLService{
+					DeleteURLByShortCodeFunc: func(ctx context.Context, shortCode string, userID uuid.UUID) error {
+						return service.ErrNoURLFound
+					},
+				}
+			},
+			expectedStatus: http.StatusNotFound,
+			verifyBody: func(t *testing.T, body []byte) {
+				var errResp map[string]string
+				if err := json.Unmarshal(body, &errResp); err != nil {
+					t.Fatalf("could not unmarshal error response: %v", err)
+				}
+				if errResp["error"] != "Not found" {
+					t.Errorf("expected error 'Not found', got %q", errResp["error"])
+				}
+			},
+		},
+		{
+			name:          "Unauthenticated request returns 401",
+			authenticated: false,
+			shortCode:     "myCode",
+			setupMock: func() *mockURLService {
+				return &mockURLService{}
+			},
+			expectedStatus: http.StatusUnauthorized,
+			verifyBody: func(t *testing.T, body []byte) {
+				var errResp map[string]string
+				if err := json.Unmarshal(body, &errResp); err != nil {
+					t.Fatalf("could not unmarshal error response: %v", err)
+				}
+				if errResp["error"] != "Unauthorized" {
+					t.Errorf("expected error 'Unauthorized', got %q", errResp["error"])
+				}
+			},
+		},
+		{
+			name:          "Unexpected service error returns 500",
+			authenticated: true,
+			shortCode:     "myCode",
+			setupMock: func() *mockURLService {
+				return &mockURLService{
+					DeleteURLByShortCodeFunc: func(ctx context.Context, shortCode string, userID uuid.UUID) error {
+						return errors.New("unexpected database error")
+					},
+				}
+			},
+			expectedStatus: http.StatusInternalServerError,
+			verifyBody: func(t *testing.T, body []byte) {
+				var errResp map[string]string
+				if err := json.Unmarshal(body, &errResp); err != nil {
+					t.Fatalf("could not unmarshal error response: %v", err)
+				}
+				if errResp["error"] != api.InternalErrorMsg {
+					t.Errorf("expected error %q, got %q", api.InternalErrorMsg, errResp["error"])
+				}
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			svc := tt.setupMock()
+			handler := api.NewURLHandler(svc, logger, "http://closelinkit.test")
+
+			req := httptest.NewRequest(http.MethodDelete, "/api/v1/urls/"+tt.shortCode, nil)
+			req.SetPathValue("shortCode", tt.shortCode)
+			if tt.authenticated {
+				ctx := service.ContextWithUserID(req.Context(), testUserID)
+				req = req.WithContext(ctx)
+			}
+
+			w := httptest.NewRecorder()
+			handler.HandlerDeleteURL(w, req)
 
 			if w.Code != tt.expectedStatus {
 				t.Errorf("expected status %d, got %d", tt.expectedStatus, w.Code)
