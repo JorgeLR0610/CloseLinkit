@@ -9,13 +9,12 @@ cleanup jobs, cookie-based refresh, unified `/` view, URL claiming.
 History: `CHANGELOG.md`. Endpoints: `server/docs/openapi.yaml`.
 
 ## Active task
-Delete user URLs (check TASK.md)
+None (Delete user URLs completed)
 
 ## Next steps
-1. Delete user URLs: `DELETE /api/v1/urls/{code}` + UI on `/`.
-2. Edit URLs / per-link analytics.
-3. Custom aliases (open question in `agent/decisions.md`).
-4. Infra: deployment on AWS, Kubernetes manifests.
+1. Edit URLs / per-link analytics.
+2. Custom aliases (open question in `agent/decisions.md`).
+3. Infra: deployment on AWS, Kubernetes manifests.
 
 ## Watch out
 - Cleanup goroutines (refresh tokens hourly, expired URLs every 12h) are started in
