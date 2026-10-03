@@ -68,13 +68,36 @@ describe("urls service", () => {
   });
 
   it("getURLStats extracts shortCode from full shortURL and converts created_at to Date", async () => {
-    const stats = await getURLStats("http://localhost:8080/xyz9999");
+    let capturedAuthHeader: string | null = null;
+    server.use(
+      http.get(`${baseURL}/api/v1/xyz9999/stats`, ({ request }) => {
+        capturedAuthHeader = request.headers.get("Authorization");
+        return HttpResponse.json({
+          original_url: "https://example.com/test-stats",
+          click_count: 42,
+          created_at: "2026-08-01T12:00:00Z",
+        });
+      }),
+    );
+
+    const stats = await getURLStats("http://localhost:8080/xyz9999", "my-stats-token");
+    expect(capturedAuthHeader).toBe("Bearer my-stats-token");
     expect(stats).toEqual({
       originalURL: "https://example.com/test-stats",
       clickCount: 42,
       createdAt: new Date("2026-08-01T12:00:00Z"),
     });
     expect(stats.createdAt).toBeInstanceOf(Date);
+  });
+
+  it("getURLStats throws error on 401 Unauthorized response", async () => {
+    server.use(
+      http.get(`${baseURL}/api/v1/xyz9999/stats`, () => {
+        return HttpResponse.json({ error: "Unauthorized" }, { status: 401 });
+      }),
+    );
+
+    await expect(getURLStats("http://localhost:8080/xyz9999")).rejects.toThrow("Unauthorized");
   });
 
   it("claimURLs sends Authorization header and payload, and maps response", async () => {

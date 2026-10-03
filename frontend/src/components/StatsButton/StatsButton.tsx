@@ -10,6 +10,7 @@ interface Props {
   setDisplayedStats: Dispatch<SetStateAction<boolean>>;
   setStats: Dispatch<SetStateAction<URLStats | null>>;
   stats?: URLStats | null;
+  accessToken?: string;
 }
 
 export default function StatsButton({
@@ -19,6 +20,7 @@ export default function StatsButton({
   setDisplayedStats,
   setStats,
   stats,
+  accessToken,
 }: Props) {
   const handleStatsDisplay = async () => {
     if (displayedStats) {
@@ -27,7 +29,7 @@ export default function StatsButton({
     }
 
     try {
-      setStats(await getURLStats(shortURL));
+      setStats(await getURLStats(shortURL, accessToken));
     } catch {
       if (!stats) {
         toast.error("Could not load stats. Please try again later.");

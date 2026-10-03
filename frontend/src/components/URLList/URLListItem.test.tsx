@@ -13,7 +13,7 @@ describe("URLListItem Component", () => {
     shortURL: "http://localhost:8080/xyz1234",
   };
 
-  it("renders original URL, short URL link, Copy button, and Stats button", () => {
+  it("renders original URL, short URL link, Copy button, and does not render Stats button when unauthenticated", () => {
     render(<URLListItem item={item} />);
 
     expect(screen.getByText(item.originalURL)).toBeInTheDocument();
@@ -23,6 +23,12 @@ describe("URLListItem Component", () => {
     expect(shortUrlLink).toHaveAttribute("href", item.shortURL);
 
     expect(screen.getByRole("button", { name: "Copy" })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Analytics" })).not.toBeInTheDocument();
+  });
+
+  it("renders Stats button when isAuthenticated is true", () => {
+    render(<URLListItem item={item} isAuthenticated={true} />);
+
     expect(screen.getByRole("button", { name: "Analytics" })).toBeInTheDocument();
   });
 
@@ -34,7 +40,7 @@ describe("URLListItem Component", () => {
       createdAt: mockDate,
     });
 
-    render(<URLListItem item={item} />);
+    render(<URLListItem item={item} isAuthenticated={true} />);
 
     const analyticsButton = screen.getByRole("button", { name: "Analytics" });
     fireEvent.click(analyticsButton);
@@ -60,7 +66,7 @@ describe("URLListItem Component", () => {
       createdAt: new Date("2026-09-01T12:00:00Z"),
     });
 
-    render(<URLListItem item={itemWithStats} />);
+    render(<URLListItem item={itemWithStats} isAuthenticated={true} />);
     fireEvent.click(screen.getByRole("button", { name: "Analytics" }));
 
     expect(await screen.findByText("50")).toBeInTheDocument();
@@ -71,7 +77,7 @@ describe("URLListItem Component", () => {
   it("shows pre-populated stats when the refresh request fails", async () => {
     vi.spyOn(urlServices, "getURLStats").mockRejectedValue(new Error("network"));
 
-    render(<URLListItem item={itemWithStats} />);
+    render(<URLListItem item={itemWithStats} isAuthenticated={true} />);
     fireEvent.click(screen.getByRole("button", { name: "Analytics" }));
 
     expect(await screen.findByText("42")).toBeInTheDocument();
@@ -82,7 +88,7 @@ describe("URLListItem Component", () => {
       .spyOn(urlServices, "getURLStats")
       .mockRejectedValue(new Error("network"));
 
-    render(<URLListItem item={item} />);
+    render(<URLListItem item={item} isAuthenticated={true} />);
     fireEvent.click(screen.getByRole("button", { name: "Analytics" }));
 
     await waitFor(() => expect(getStatsSpy).toHaveBeenCalledTimes(1));
@@ -104,7 +110,7 @@ describe("URLListItem Component", () => {
         createdAt: new Date("2026-08-10T15:30:00Z"),
       });
 
-    render(<URLListItem item={item} />);
+    render(<URLListItem item={item} isAuthenticated={true} />);
 
     fireEvent.click(screen.getByRole("button", { name: "Analytics" }));
     expect(await screen.findByText("1")).toBeInTheDocument();

@@ -16,6 +16,7 @@ describe("URLList Component", () => {
     ).toBeInTheDocument();
     expect(screen.getByText("https://example.com/one")).toBeInTheDocument();
     expect(screen.getByText("https://example.com/two")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Analytics" })).not.toBeInTheDocument();
   });
 
   it("renders delete buttons for items when onDelete is passed", () => {
@@ -28,5 +29,17 @@ describe("URLList Component", () => {
 
     const deleteButtons = screen.getAllByRole("button", { name: /delete/i });
     expect(deleteButtons).toHaveLength(2);
+  });
+
+  it("renders Analytics buttons for items when isAuthenticated is true", () => {
+    const history = [
+      { originalURL: "https://example.com/one", shortURL: "http://localhost:8080/aaa" },
+      { originalURL: "https://example.com/two", shortURL: "http://localhost:8080/bbb" },
+    ];
+
+    render(<URLList history={history} isAuthenticated={true} />);
+
+    const statsButtons = screen.getAllByRole("button", { name: "Analytics" });
+    expect(statsButtons).toHaveLength(2);
   });
 });

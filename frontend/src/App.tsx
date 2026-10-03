@@ -152,6 +152,8 @@ export function HomePage() {
         {displayHistory.length > 0 && (
           <URLList
             history={displayHistory}
+            isAuthenticated={isAuthenticated}
+            accessToken={accessToken || undefined}
             onDelete={isAuthenticated ? handleDeleteURL : undefined}
           />
         )}

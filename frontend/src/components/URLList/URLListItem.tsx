@@ -7,9 +7,16 @@ import type { URLStats, URLItem } from "../../types/url";
 interface Props {
   item: URLItem;
   onDelete?: (shortURL: string) => Promise<void> | void;
+  isAuthenticated?: boolean;
+  accessToken?: string;
 }
 
-export default function URLListItem({ item, onDelete }: Props) {
+export default function URLListItem({
+  item,
+  onDelete,
+  isAuthenticated = false,
+  accessToken,
+}: Props) {
   const [displayedStats, setDisplayedStats] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
   const [stats, setStats] = useState<URLStats | null>(() => {
@@ -56,14 +63,17 @@ export default function URLListItem({ item, onDelete }: Props) {
 
           <CopyButton textToCopy={item.shortURL} className="util-btns-small" />
 
-          <StatsButton
-            shortURL={item.shortURL}
-            className={`util-btns-small ${displayedStats ? "active" : ""}`}
-            displayedStats={displayedStats}
-            setDisplayedStats={setDisplayedStats}
-            setStats={setStats}
-            stats={stats}
-          />
+          {isAuthenticated && (
+            <StatsButton
+              shortURL={item.shortURL}
+              className={`util-btns-small ${displayedStats ? "active" : ""}`}
+              displayedStats={displayedStats}
+              setDisplayedStats={setDisplayedStats}
+              setStats={setStats}
+              stats={stats}
+              accessToken={accessToken}
+            />
+          )}
 
           {onDelete && (
             <button
@@ -79,7 +89,7 @@ export default function URLListItem({ item, onDelete }: Props) {
         </div>
       </div>
 
-      {displayedStats && stats && (
+      {isAuthenticated && displayedStats && stats && (
         <div className="url-item-stats fade-in">
           <div className="stats-grid">
             <div className="stat-card">

@@ -209,6 +209,7 @@ describe("App Component", () => {
       expect(authService.getUserURLs).toHaveBeenCalledWith("user-jwt-token");
       expect(screen.getByText("https://example.com/user-link-1")).toBeInTheDocument();
       expect(screen.getByText("http://localhost:8080/code1")).toBeInTheDocument();
+      expect(screen.getByRole("button", { name: "Analytics" })).toBeInTheDocument();
     });
   });
 
@@ -548,7 +549,7 @@ describe("App Component", () => {
     });
   });
 
-  it("does not show delete buttons for guest users with links in localStorage", () => {
+  it("does not show delete buttons or analytics buttons for guest users with links in localStorage", () => {
     localStorage.setItem(
       "history",
       JSON.stringify([
@@ -560,5 +561,49 @@ describe("App Component", () => {
 
     expect(screen.getByText("https://example.com/guest-1")).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: /delete/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /analytics/i })).not.toBeInTheDocument();
+  });
+
+  it("allows authenticated user to view analytics, calling getURLStats with accessToken", async () => {
+    const mockURLs = [
+      {
+        original_url: "https://example.com/link-1",
+        short_code: "code1",
+        short_url: "http://localhost:8080/code1",
+        created_at: "2026-09-20T10:00:00Z",
+        click_count: 5,
+      },
+    ];
+
+    vi.spyOn(AuthContextModule, "useAuth").mockReturnValue({
+      user: { id: "123", email: "user@example.com", created_at: "" },
+      accessToken: "user-jwt-token",
+      isLoading: false,
+      isAuthenticated: true,
+      login: vi.fn(),
+      register: vi.fn(),
+      logout: vi.fn(),
+    });
+    vi.spyOn(authService, "getUserURLs").mockResolvedValue(mockURLs);
+    const getStatsSpy = vi.spyOn(urlServices, "getURLStats").mockResolvedValue({
+      originalURL: "https://example.com/link-1",
+      clickCount: 15,
+      createdAt: new Date("2026-09-20T10:00:00Z"),
+    });
+
+    renderApp("/");
+
+    await waitFor(() => {
+      expect(screen.getByText("https://example.com/link-1")).toBeInTheDocument();
+    });
+
+    const analyticsBtn = screen.getByRole("button", { name: "Analytics" });
+    fireEvent.click(analyticsBtn);
+
+    await waitFor(() => {
+      expect(getStatsSpy).toHaveBeenCalledWith("http://localhost:8080/code1", "user-jwt-token");
+      expect(screen.getByText("Total Clicks")).toBeInTheDocument();
+      expect(screen.getByText("15")).toBeInTheDocument();
+    });
   });
 });

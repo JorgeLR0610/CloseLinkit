@@ -32,11 +32,17 @@ export async function shortenURL(
   };
 }
 
-export async function getURLStats(shortURL: string): Promise<URLStats> {
+export async function getURLStats(shortURL: string, accessToken?: string): Promise<URLStats> {
   const shortCode = shortURL.split("/").pop();
+
+  const headers: Record<string, string> = {};
+  if (accessToken) {
+    headers["Authorization"] = `Bearer ${accessToken}`;
+  }
 
   const data = await request<GetURLStatsAPIResponse>(`/api/v1/${shortCode}/stats`, {
     method: "GET",
+    headers,
   });
 
   return {
