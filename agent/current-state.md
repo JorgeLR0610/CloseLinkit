@@ -9,7 +9,7 @@ cleanup jobs, cookie-based refresh, unified `/` view, URL claiming.
 History: `CHANGELOG.md`. Endpoints: `server/docs/openapi.yaml`.
 
 ## Active task
-None (Delete user URLs completed)
+None (Require auth on stats endpoint completed)
 
 ## Next steps
 1. Edit URLs / per-link analytics.

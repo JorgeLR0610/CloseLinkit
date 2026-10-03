@@ -10,3 +10,4 @@
 - `POST /api/v1/urls/claim`: transfer anonymous URLs to the user on login/signup.
 - Frontend: login/signup pages, React Router, unified `/` view for guests and users.
 - Migrations 002-005: users, refresh_tokens, urls.user_id, urls.expires_at.
+- Require authentication for `GET /api/v1/{shortCode}/stats` and restrict analytics UI to authenticated users.

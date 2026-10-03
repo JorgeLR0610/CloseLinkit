@@ -178,7 +178,7 @@ The Go backend exposes a clean REST API. Full request/response schemas and inter
 | `GET` | `/api/v1/urls` | Retrieves all shortened URLs for the authenticated user (Requires Bearer token) |
 | `POST` | `/api/v1/urls/claim` | Claims anonymous URLs for the authenticated user and removes expiration (Requires Bearer token) |
 | `DELETE` | `/api/v1/urls/{shortCode}` | Deletes a shortened URL owned by the authenticated user (Requires Bearer token) |
-| `GET` | `/api/v1/{shortCode}/stats` | Retrieves access counts and statistics for a short code |
+| `GET` | `/api/v1/{shortCode}/stats` | Retrieves access counts and statistics for a short code (Requires Bearer token) |
 | `GET` | `/{shortCode}` | Resolves short code and issues an HTTP 302 redirect to original URL |
 | `GET` | `/docs/` | Serves embedded Swagger UI documentation |
 | `GET` | `/openapi.yaml` | Serves the OpenAPI 3.0 specification file |
