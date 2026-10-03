@@ -26,10 +26,12 @@ type mockURLRepository struct {
 	GetURLsByUserIDFunc       func(ctx context.Context, userID pgtype.UUID) ([]repository.GetURLsByUserIDRow, error)
 	DeleteExpiredURLsFunc     func(ctx context.Context) error
 	ClaimURLsByShortCodesFunc func(ctx context.Context, arg repository.ClaimURLsByShortCodesParams) ([]string, error)
+	DeleteURLByShortCodeFunc  func(ctx context.Context, arg repository.DeleteURLByShortCodeParams) (int64, error)
 	createURLCalls            int
 	incrementClickCalls       int
 	deleteExpiredURLsCalls    int
 	claimURLsCalls            int
+	deleteURLByShortCodeCalls int
 }
 
 func (m *mockURLRepository) CreateURL(ctx context.Context, arg repository.CreateURLParams) (repository.CreateURLRow, error) {
@@ -83,6 +85,14 @@ func (m *mockURLRepository) ClaimURLsByShortCodes(ctx context.Context, arg repos
 		return m.ClaimURLsByShortCodesFunc(ctx, arg)
 	}
 	return nil, nil
+}
+
+func (m *mockURLRepository) DeleteURLByShortCode(ctx context.Context, arg repository.DeleteURLByShortCodeParams) (int64, error) {
+	m.deleteURLByShortCodeCalls++
+	if m.DeleteURLByShortCodeFunc != nil {
+		return m.DeleteURLByShortCodeFunc(ctx, arg)
+	}
+	return 0, nil
 }
 
 // Mock for ShortCodeGenerator
@@ -967,6 +977,82 @@ func TestURLService_ClaimURLs(t *testing.T) {
 		_, err := srv.ClaimURLs(context.Background(), userID, []string{"code1"})
 		if err == nil || !errors.Is(err, errors.New("failed to claim URLs")) && err.Error() != "failed to claim URLs: db error" {
 			t.Fatalf("expected error wrapping db error, got %v", err)
+		}
+	})
+}
+
+func TestURLService_DeleteURLByShortCode(t *testing.T) {
+	generator := &mockShortCodeGenerator{}
+	userID := uuid.MustParse("550e8400-e29b-41d4-a716-446655440000")
+
+	t.Run("successfully deletes own URL when repository reports 1 row affected", func(t *testing.T) {
+		var capturedArg repository.DeleteURLByShortCodeParams
+		repo := &mockURLRepository{
+			DeleteURLByShortCodeFunc: func(ctx context.Context, arg repository.DeleteURLByShortCodeParams) (int64, error) {
+				capturedArg = arg
+				return 1, nil
+			},
+		}
+
+		srv := service.NewURLService(repo, generator)
+		err := srv.DeleteURLByShortCode(context.Background(), "  validCode  ", userID)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+
+		if capturedArg.ShortCode != "validCode" {
+			t.Errorf("expected trimmed short code 'validCode', got %q", capturedArg.ShortCode)
+		}
+		if !capturedArg.UserID.Valid || capturedArg.UserID.Bytes != userID {
+			t.Errorf("expected UserID %v, got %v", userID, capturedArg.UserID.Bytes)
+		}
+		if repo.deleteURLByShortCodeCalls != 1 {
+			t.Errorf("expected 1 delete call, got %d", repo.deleteURLByShortCodeCalls)
+		}
+	})
+
+	t.Run("returns ErrNoURLFound when URL does not exist or belongs to another user (0 rows affected)", func(t *testing.T) {
+		repo := &mockURLRepository{
+			DeleteURLByShortCodeFunc: func(ctx context.Context, arg repository.DeleteURLByShortCodeParams) (int64, error) {
+				return 0, nil
+			},
+		}
+
+		srv := service.NewURLService(repo, generator)
+		err := srv.DeleteURLByShortCode(context.Background(), "notOwnedOrMissing", userID)
+		if !errors.Is(err, service.ErrNoURLFound) {
+			t.Fatalf("expected ErrNoURLFound, got %v", err)
+		}
+		if repo.deleteURLByShortCodeCalls != 1 {
+			t.Errorf("expected 1 delete call, got %d", repo.deleteURLByShortCodeCalls)
+		}
+	})
+
+	t.Run("returns ErrInvalidUserID when userID is uuid.Nil without calling repository", func(t *testing.T) {
+		repo := &mockURLRepository{}
+		srv := service.NewURLService(repo, generator)
+
+		err := srv.DeleteURLByShortCode(context.Background(), "validCode", uuid.Nil)
+		if !errors.Is(err, service.ErrInvalidUserID) {
+			t.Fatalf("expected ErrInvalidUserID, got %v", err)
+		}
+		if repo.deleteURLByShortCodeCalls != 0 {
+			t.Errorf("expected 0 delete calls, got %d", repo.deleteURLByShortCodeCalls)
+		}
+	})
+
+	t.Run("propagates repository error", func(t *testing.T) {
+		dbErr := errors.New("db error")
+		repo := &mockURLRepository{
+			DeleteURLByShortCodeFunc: func(ctx context.Context, arg repository.DeleteURLByShortCodeParams) (int64, error) {
+				return 0, dbErr
+			},
+		}
+
+		srv := service.NewURLService(repo, generator)
+		err := srv.DeleteURLByShortCode(context.Background(), "validCode", userID)
+		if err == nil || !errors.Is(err, dbErr) {
+			t.Fatalf("expected error wrapping dbErr, got %v", err)
 		}
 	})
 }
