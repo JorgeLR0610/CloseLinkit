@@ -180,16 +180,17 @@ func TestAuthHandler_HandlerLogin(t *testing.T) {
 			setupService: func() *mockAuthService {
 				return &mockAuthService{
 					LoginFunc: func(ctx context.Context, email, password string) (*service.TokenPair, *service.UserResponse, error) {
-						return &service.TokenPair{
-								AccessToken:  "access.token",
-								RefreshToken: "refresh.token",
-								ExpiresIn:    900,
-							}, &service.UserResponse{
-								ID:        testUUID,
-								Email:     email,
-								CreatedAt: now,
-								UpdatedAt: now,
-							}, nil
+						tokens := &service.TokenPair{
+							AccessToken:  "access.token",
+							RefreshToken: "refresh.token",
+							ExpiresIn:    900,
+						}
+						user := &service.UserResponse{
+							ID:        testUUID,
+							Email:     email,
+							CreatedAt: now,
+						}
+						return tokens, user, nil
 					},
 				}
 			},
@@ -299,16 +300,18 @@ func TestAuthHandler_HandlerRefreshToken(t *testing.T) {
 			setupService: func() *mockAuthService {
 				return &mockAuthService{
 					RefreshTokenFunc: func(ctx context.Context, rawRefreshToken string) (*service.TokenPair, *service.UserResponse, error) {
-						return &service.TokenPair{
-								AccessToken:  "new.access.token",
-								RefreshToken: "new.refresh.token",
-								ExpiresIn:    900,
-							}, &service.UserResponse{
-								ID:        testUUID,
-								Email:     "user@example.com",
-								CreatedAt: now,
-								UpdatedAt: now,
-							}, nil
+						tokens := &service.TokenPair{
+							AccessToken:  "new.access.token",
+							RefreshToken: "new.refresh.token",
+							ExpiresIn:    900,
+						}
+						user := &service.UserResponse{
+							ID:        testUUID,
+							Email:     "user@example.com",
+							CreatedAt: now,
+							UpdatedAt: now,
+						}
+						return tokens, user, nil
 					},
 				}
 			},
@@ -324,16 +327,18 @@ func TestAuthHandler_HandlerRefreshToken(t *testing.T) {
 						if rawRefreshToken != "valid-cookie-token" {
 							return nil, nil, service.ErrInvalidRefreshToken
 						}
-						return &service.TokenPair{
-								AccessToken:  "cookie.access.token",
-								RefreshToken: "cookie.refresh.token",
-								ExpiresIn:    900,
-							}, &service.UserResponse{
-								ID:        testUUID,
-								Email:     "user@example.com",
-								CreatedAt: now,
-								UpdatedAt: now,
-							}, nil
+						tokens := &service.TokenPair{
+							AccessToken:  "cookie.access.token",
+							RefreshToken: "cookie.refresh.token",
+							ExpiresIn:    900,
+						}
+						user := &service.UserResponse{
+							ID:        testUUID,
+							Email:     "user@example.com",
+							CreatedAt: now,
+							UpdatedAt: now,
+						}
+						return tokens, user, nil
 					},
 				}
 			},
