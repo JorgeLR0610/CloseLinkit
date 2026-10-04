@@ -14,16 +14,10 @@ COPY . .
 
 RUN go build -o server ./cmd/CloseLinkit
 
-FROM alpine:3.24.1
+FROM gcr.io/distroless/static-debian13:nonroot
 
-RUN adduser -D appuser
-
-WORKDIR /
-
-COPY --from=builder /build/server ./
-
-USER appuser
+COPY --from=builder /build/server /server
 
 EXPOSE 8080
 
-CMD [ "./server" ]
+ENTRYPOINT [ "/server" ]
