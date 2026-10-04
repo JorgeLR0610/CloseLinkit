@@ -15,6 +15,7 @@ import (
 var (
 	ErrInvalidHash         = errors.New("the encoded hash is not in the correct format")
 	ErrIncompatibleVersion = errors.New("incompatible version of argon2")
+	dummyHash              = "$argon2id$v=19$m=65536,t=3,p=2$pV+/WdZbySqmIxOx2lCagg$B++LVyvomu5Y3l0D0pdoXRF0IvSzf2JUXsDxBE2s2NU"
 )
 
 type Argon2Params struct {
@@ -108,4 +109,8 @@ func VerifyPassword(password, encodedHash string) (bool, error) {
 	}
 
 	return false, nil
+}
+
+func SimulatePasswordVerification(passwd string) {
+	_, _ = VerifyPassword(passwd, dummyHash)
 }

@@ -44,7 +44,7 @@ func (rl *IPRateLimiter) getVisitor(ip string) *rate.Limiter {
 	v, exists := rl.limiters[ip]
 	if !exists {
 		v = &visitor{
-			limiter: rate.NewLimiter(rl.rate, rl.burst), 
+			limiter:  rate.NewLimiter(rl.rate, rl.burst),
 			lastSeen: now,
 		}
 
@@ -70,7 +70,7 @@ func (rl *IPRateLimiter) CleanInactiveIPs() {
 				delete(rl.limiters, ip)
 			}
 		}
-		
+
 		rl.mu.Unlock()
 	}
 }

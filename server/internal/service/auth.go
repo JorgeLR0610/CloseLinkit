@@ -165,6 +165,7 @@ func (s *AuthService) Login(ctx context.Context, email, password string) (*Token
 	user, err := s.repo.GetUserByEmail(ctx, email)
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
+			security.SimulatePasswordVerification(password)
 			return nil, nil, ErrInvalidCredentials
 		}
 		return nil, nil, fmt.Errorf("could not query user: %w", err)
