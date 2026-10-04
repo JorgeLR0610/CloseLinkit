@@ -4,20 +4,40 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"log/slog"
 	"net"
 	"net/url"
 	"strings"
+	"time"
 
 	"github.com/JorgeLR0610/CloseLinkit/internal/repository"
+	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgconn"
+	"github.com/jackc/pgx/v5/pgtype"
 )
 
 type URLRepository interface {
-	CreateURL(ctx context.Context, arg repository.CreateURLParams) (string, error)
+	CreateURL(ctx context.Context, arg repository.CreateURLParams) (repository.CreateURLRow, error)
 	GetURL(ctx context.Context, shortCode string) (string, error)
 	GetURLStats(ctx context.Context, shortCode string) (repository.GetURLStatsRow, error)
 	IncrementClickCount(ctx context.Context, shortCode string) error
+	GetURLsByUserID(ctx context.Context, userID pgtype.UUID) ([]repository.GetURLsByUserIDRow, error)
+	DeleteExpiredURLs(ctx context.Context) error
+	ClaimURLsByShortCodes(ctx context.Context, arg repository.ClaimURLsByShortCodesParams) ([]string, error)
+	DeleteURLByShortCode(ctx context.Context, arg repository.DeleteURLByShortCodeParams) (int64, error)
+}
+
+type CreatedURL struct {
+	ShortCode string
+	ExpiresAt *time.Time
+}
+
+type UserURL struct {
+	OriginalURL string
+	ShortCode   string
+	CreatedAt   time.Time
+	ClickCount  int
 }
 
 type ShortCodeGenerator interface {
@@ -28,6 +48,7 @@ var ErrInvalidURLScheme = errors.New("invalid URL scheme")
 var ErrNoHost = errors.New("invalid host")
 var ErrInvalidURL = errors.New("invalid URL")
 var ErrNoURLFound = errors.New("short URL not found")
+var ErrInvalidUserID = errors.New("invalid user ID")
 
 var ErrCouldNotGenerateUniqueShortCode = errors.New("could not generate unique short code")
 
@@ -72,30 +93,45 @@ func isValidHost(hostname string) bool {
 	return true
 }
 
-func (s *URLService) CreateShortCode(ctx context.Context, originalURL string) (string, error) {
+func (s *URLService) CreateShortCode(ctx context.Context, originalURL string) (CreatedURL, error) {
 	parsedURL, err := url.Parse(strings.TrimSpace(originalURL))
 	if err != nil {
-		return "", ErrInvalidURL
+		return CreatedURL{}, ErrInvalidURL
 	}
 
 	if parsedURL.Scheme != "http" && parsedURL.Scheme != "https" {
-		return "", ErrInvalidURLScheme
+		return CreatedURL{}, ErrInvalidURLScheme
 	}
 
 	if !isValidHost(parsedURL.Hostname()) {
-		return "", ErrNoHost
+		return CreatedURL{}, ErrNoHost
+	}
+
+	var userUUID pgtype.UUID
+	var expiresAt pgtype.Timestamptz
+
+	if userID, ok := UserIDFromContext(ctx); ok {
+		userUUID = pgtype.UUID{Bytes: userID, Valid: true}
+		expiresAt = pgtype.Timestamptz{Valid: false}
+	} else {
+		expiresAt = pgtype.Timestamptz{
+			Time:  time.Now().Add(7 * 24 * time.Hour),
+			Valid: true,
+		}
 	}
 
 	// Try to create and store short code, up to the defined number of attempts
 	for range maxRetries {
 		shortCode, err := s.generator.GenerateShortCode()
 		if err != nil {
-			return "", fmt.Errorf("error generating short code: %w", err)
+			return CreatedURL{}, fmt.Errorf("error generating short code: %w", err)
 		}
 
 		createdURL, err := s.repo.CreateURL(ctx, repository.CreateURLParams{
 			OriginalUrl: parsedURL.String(),
 			ShortCode:   shortCode,
+			UserID:      userUUID,
+			ExpiresAt:   expiresAt,
 		})
 		if err != nil {
 			if pgErr, ok := errors.AsType[*pgconn.PgError](err); ok {
@@ -103,12 +139,20 @@ func (s *URLService) CreateShortCode(ctx context.Context, originalURL string) (s
 					continue
 				}
 			}
-			return "", fmt.Errorf("could not insert URL to database: %w", err)
+			return CreatedURL{}, fmt.Errorf("could not insert URL to database: %w", err)
 		}
 
-		return createdURL, nil
+		var exp *time.Time
+		if createdURL.ExpiresAt.Valid {
+			exp = &createdURL.ExpiresAt.Time
+		}
+
+		return CreatedURL{
+			ShortCode: createdURL.ShortCode,
+			ExpiresAt: exp,
+		}, nil
 	}
-	return "", ErrCouldNotGenerateUniqueShortCode
+	return CreatedURL{}, ErrCouldNotGenerateUniqueShortCode
 }
 
 func (s *URLService) ResolveShortCode(ctx context.Context, shortCode string) (string, error) {
@@ -139,4 +183,139 @@ func (s *URLService) GetURLStats(ctx context.Context, shortCode string) (reposit
 	}
 
 	return stats, nil
+}
+
+func (s *URLService) GetURLsByUserID(ctx context.Context, userID uuid.UUID) ([]UserURL, error) {
+	rows, err := s.repo.GetURLsByUserID(ctx, pgtype.UUID{Bytes: userID, Valid: true})
+	if err != nil {
+		return nil, fmt.Errorf("error retrieving URLs for user: %w", err)
+	}
+
+	result := make([]UserURL, 0, len(rows))
+	for _, row := range rows {
+		result = append(result, UserURL{
+			OriginalURL: row.OriginalUrl,
+			ShortCode:   row.ShortCode,
+			CreatedAt:   row.CreatedAt.Time,
+			ClickCount:  int(row.ClickCount),
+		})
+	}
+
+	return result, nil
+}
+
+func extractShortCode(raw string) string {
+	s := strings.TrimSpace(raw)
+	if s == "" {
+		return ""
+	}
+	if strings.Contains(s, "://") {
+		u, err := url.Parse(s)
+		if err != nil {
+			return ""
+		}
+		s = u.Path // ignore host, query and fragment
+	}
+	s = strings.Trim(s, "/")
+	if i := strings.LastIndex(s, "/"); i >= 0 {
+		s = s[i+1:]
+	}
+	return strings.TrimSpace(s)
+}
+
+func (s *URLService) ClaimURLs(ctx context.Context, userID uuid.UUID, shortCodes []string) ([]string, error) {
+	if userID == uuid.Nil {
+		return nil, ErrInvalidUserID
+	}
+	if len(shortCodes) == 0 {
+		return []string{}, nil
+	}
+
+	seen := make(map[string]struct{}, len(shortCodes))
+	cleanedCodes := make([]string, 0, len(shortCodes))
+
+	for _, raw := range shortCodes {
+		code := extractShortCode(raw)
+		if code == "" {
+			continue
+		}
+		if _, exists := seen[code]; !exists {
+			seen[code] = struct{}{}
+			cleanedCodes = append(cleanedCodes, code)
+		}
+	}
+
+	if len(cleanedCodes) == 0 {
+		return []string{}, nil
+	}
+
+	claimed, err := s.repo.ClaimURLsByShortCodes(ctx, repository.ClaimURLsByShortCodesParams{
+		UserID:     pgtype.UUID{Bytes: userID, Valid: true},
+		ShortCodes: cleanedCodes,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("failed to claim URLs: %w", err)
+	}
+
+	if claimed == nil {
+		return []string{}, nil
+	}
+
+	return claimed, nil
+}
+
+func (s *URLService) StartExpiredURLsCleanup(ctx context.Context, interval time.Duration, logger *slog.Logger) {
+	if logger == nil {
+		logger = slog.Default()
+	}
+	if interval <= 0 {
+		interval = 12 * time.Hour
+	}
+
+	ticker := time.NewTicker(interval)
+	defer ticker.Stop()
+
+	// Initial cleanup
+	if err := s.repo.DeleteExpiredURLs(ctx); err != nil && !errors.Is(err, context.Canceled) {
+		logger.Error(
+			"failed initial cleanup of expired URLs",
+			slog.Any("error", err),
+		)
+	}
+
+	// Following cleanups
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-ticker.C:
+			if err := s.repo.DeleteExpiredURLs(ctx); err != nil && !errors.Is(err, context.Canceled) {
+				logger.Error(
+					"failed periodic cleanup of expired URLs",
+					slog.Any("error", err),
+				)
+			}
+		}
+	}
+}
+
+func (s *URLService) DeleteURLByShortCode(ctx context.Context, shortCode string, userID uuid.UUID) error {
+	if userID == uuid.Nil {
+		return ErrInvalidUserID
+	}
+
+	rows, err := s.repo.DeleteURLByShortCode(ctx, repository.DeleteURLByShortCodeParams{
+		ShortCode: strings.TrimSpace(shortCode),
+		UserID:    pgtype.UUID{Bytes: userID, Valid: true},
+	})
+
+	if err != nil {
+		return fmt.Errorf("could not delete URL: %w", err)
+	}
+
+	if rows == 0 {
+		return ErrNoURLFound
+	}
+
+	return nil
 }

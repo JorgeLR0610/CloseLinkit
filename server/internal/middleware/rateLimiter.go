@@ -39,26 +39,38 @@ func (rl *IPRateLimiter) getVisitor(ip string) *rate.Limiter {
 	rl.mu.Lock()
 	defer rl.mu.Unlock()
 
+	now := time.Now()
+
 	v, exists := rl.limiters[ip]
 	if !exists {
-		visitor := &visitor{limiter: rate.NewLimiter(rl.rate, rl.burst), lastSeen: time.Now()}
-		rl.limiters[ip] = visitor
-		return visitor.limiter
+		v = &visitor{
+			limiter:  rate.NewLimiter(rl.rate, rl.burst),
+			lastSeen: now,
+		}
+
+		rl.limiters[ip] = v
+		return v.limiter
 	}
 
-	v.lastSeen = time.Now()
+	v.lastSeen = now
 	return v.limiter
 }
 
 func (rl *IPRateLimiter) CleanInactiveIPs() {
-	for {
-		time.Sleep(rl.runningInterval)
+	ticker := time.NewTicker(rl.runningInterval)
+	defer ticker.Stop()
+
+	for range ticker.C {
+		now := time.Now()
+
 		rl.mu.Lock()
+
 		for ip, v := range rl.limiters {
-			if time.Since(v.lastSeen) > rl.expirationTime {
+			if now.Sub(v.lastSeen) > rl.expirationTime {
 				delete(rl.limiters, ip)
 			}
 		}
+
 		rl.mu.Unlock()
 	}
 }

@@ -11,28 +11,101 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
-const createURL = `-- name: CreateURL :one
-INSERT INTO urls (original_url, short_code)
-VALUES ($1, $2)
+const claimURLsByShortCodes = `-- name: ClaimURLsByShortCodes :many
+UPDATE urls
+SET user_id = $1, expires_at = NULL
+WHERE short_code = ANY($2::text[]) AND user_id IS NULL
 RETURNING short_code
+`
+
+type ClaimURLsByShortCodesParams struct {
+	UserID     pgtype.UUID
+	ShortCodes []string
+}
+
+func (q *Queries) ClaimURLsByShortCodes(ctx context.Context, arg ClaimURLsByShortCodesParams) ([]string, error) {
+	rows, err := q.db.Query(ctx, claimURLsByShortCodes, arg.UserID, arg.ShortCodes)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []string
+	for rows.Next() {
+		var short_code string
+		if err := rows.Scan(&short_code); err != nil {
+			return nil, err
+		}
+		items = append(items, short_code)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const createURL = `-- name: CreateURL :one
+INSERT INTO urls (original_url, short_code, user_id, expires_at)
+VALUES ($1, $2, $3, $4)
+RETURNING short_code, expires_at
 `
 
 type CreateURLParams struct {
 	OriginalUrl string
 	ShortCode   string
+	UserID      pgtype.UUID
+	ExpiresAt   pgtype.Timestamptz
 }
 
-func (q *Queries) CreateURL(ctx context.Context, arg CreateURLParams) (string, error) {
-	row := q.db.QueryRow(ctx, createURL, arg.OriginalUrl, arg.ShortCode)
-	var short_code string
-	err := row.Scan(&short_code)
-	return short_code, err
+type CreateURLRow struct {
+	ShortCode string
+	ExpiresAt pgtype.Timestamptz
+}
+
+func (q *Queries) CreateURL(ctx context.Context, arg CreateURLParams) (CreateURLRow, error) {
+	row := q.db.QueryRow(ctx, createURL,
+		arg.OriginalUrl,
+		arg.ShortCode,
+		arg.UserID,
+		arg.ExpiresAt,
+	)
+	var i CreateURLRow
+	err := row.Scan(&i.ShortCode, &i.ExpiresAt)
+	return i, err
+}
+
+const deleteExpiredURLs = `-- name: DeleteExpiredURLs :exec
+DELETE FROM urls
+WHERE expires_at <= NOW()
+`
+
+func (q *Queries) DeleteExpiredURLs(ctx context.Context) error {
+	_, err := q.db.Exec(ctx, deleteExpiredURLs)
+	return err
+}
+
+const deleteURLByShortCode = `-- name: DeleteURLByShortCode :execrows
+DELETE FROM urls
+WHERE short_code = $1 AND user_id = $2
+`
+
+type DeleteURLByShortCodeParams struct {
+	ShortCode string
+	UserID    pgtype.UUID
+}
+
+func (q *Queries) DeleteURLByShortCode(ctx context.Context, arg DeleteURLByShortCodeParams) (int64, error) {
+	result, err := q.db.Exec(ctx, deleteURLByShortCode, arg.ShortCode, arg.UserID)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
 }
 
 const getURL = `-- name: GetURL :one
 SELECT original_url
 FROM urls 
 WHERE short_code = $1
+AND (expires_at is NULL OR expires_at > NOW())
 `
 
 func (q *Queries) GetURL(ctx context.Context, shortCode string) (string, error) {
@@ -58,6 +131,45 @@ func (q *Queries) GetURLStats(ctx context.Context, shortCode string) (GetURLStat
 	var i GetURLStatsRow
 	err := row.Scan(&i.ClickCount, &i.CreatedAt)
 	return i, err
+}
+
+const getURLsByUserID = `-- name: GetURLsByUserID :many
+SELECT original_url, short_code, created_at, click_count
+FROM urls
+WHERE user_id = $1
+ORDER BY created_at DESC
+`
+
+type GetURLsByUserIDRow struct {
+	OriginalUrl string
+	ShortCode   string
+	CreatedAt   pgtype.Timestamptz
+	ClickCount  int32
+}
+
+func (q *Queries) GetURLsByUserID(ctx context.Context, userID pgtype.UUID) ([]GetURLsByUserIDRow, error) {
+	rows, err := q.db.Query(ctx, getURLsByUserID, userID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []GetURLsByUserIDRow
+	for rows.Next() {
+		var i GetURLsByUserIDRow
+		if err := rows.Scan(
+			&i.OriginalUrl,
+			&i.ShortCode,
+			&i.CreatedAt,
+			&i.ClickCount,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
 }
 
 const incrementClickCount = `-- name: IncrementClickCount :exec

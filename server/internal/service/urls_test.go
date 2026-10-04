@@ -3,37 +3,96 @@ package service_test
 import (
 	"context"
 	"errors"
+	"io"
+	"log/slog"
+	"sync/atomic"
 	"testing"
+	"time"
 
 	"github.com/JorgeLR0610/CloseLinkit/internal/repository"
 	"github.com/JorgeLR0610/CloseLinkit/internal/service"
+	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgconn"
+	"github.com/jackc/pgx/v5/pgtype"
 )
 
 // Mock for URLRepository
 type mockURLRepository struct {
-	CreateURLFunc  func(ctx context.Context, arg repository.CreateURLParams) (string, error)
-	createURLCalls int
+	CreateURLFunc             func(ctx context.Context, arg repository.CreateURLParams) (repository.CreateURLRow, error)
+	GetURLFunc                func(ctx context.Context, shortCode string) (string, error)
+	GetURLStatsFunc           func(ctx context.Context, shortCode string) (repository.GetURLStatsRow, error)
+	IncrementClickCountFunc   func(ctx context.Context, shortCode string) error
+	GetURLsByUserIDFunc       func(ctx context.Context, userID pgtype.UUID) ([]repository.GetURLsByUserIDRow, error)
+	DeleteExpiredURLsFunc     func(ctx context.Context) error
+	ClaimURLsByShortCodesFunc func(ctx context.Context, arg repository.ClaimURLsByShortCodesParams) ([]string, error)
+	DeleteURLByShortCodeFunc  func(ctx context.Context, arg repository.DeleteURLByShortCodeParams) (int64, error)
+	createURLCalls            int
+	incrementClickCalls       int
+	deleteExpiredURLsCalls    int
+	claimURLsCalls            int
+	deleteURLByShortCodeCalls int
 }
 
-func (m *mockURLRepository) CreateURL(ctx context.Context, arg repository.CreateURLParams) (string, error) {
+func (m *mockURLRepository) CreateURL(ctx context.Context, arg repository.CreateURLParams) (repository.CreateURLRow, error) {
 	m.createURLCalls++
 	if m.CreateURLFunc != nil {
 		return m.CreateURLFunc(ctx, arg)
 	}
-	return "", nil
+	return repository.CreateURLRow{}, nil
 }
 
 func (m *mockURLRepository) GetURL(ctx context.Context, shortCode string) (string, error) {
+	if m.GetURLFunc != nil {
+		return m.GetURLFunc(ctx, shortCode)
+	}
 	return "", nil
 }
 
 func (m *mockURLRepository) GetURLStats(ctx context.Context, shortCode string) (repository.GetURLStatsRow, error) {
+	if m.GetURLStatsFunc != nil {
+		return m.GetURLStatsFunc(ctx, shortCode)
+	}
 	return repository.GetURLStatsRow{}, nil
 }
 
 func (m *mockURLRepository) IncrementClickCount(ctx context.Context, shortCode string) error {
+	m.incrementClickCalls++
+	if m.IncrementClickCountFunc != nil {
+		return m.IncrementClickCountFunc(ctx, shortCode)
+	}
 	return nil
+}
+
+func (m *mockURLRepository) GetURLsByUserID(ctx context.Context, userID pgtype.UUID) ([]repository.GetURLsByUserIDRow, error) {
+	if m.GetURLsByUserIDFunc != nil {
+		return m.GetURLsByUserIDFunc(ctx, userID)
+	}
+	return nil, nil
+}
+
+func (m *mockURLRepository) DeleteExpiredURLs(ctx context.Context) error {
+	m.deleteExpiredURLsCalls++
+	if m.DeleteExpiredURLsFunc != nil {
+		return m.DeleteExpiredURLsFunc(ctx)
+	}
+	return nil
+}
+
+func (m *mockURLRepository) ClaimURLsByShortCodes(ctx context.Context, arg repository.ClaimURLsByShortCodesParams) ([]string, error) {
+	m.claimURLsCalls++
+	if m.ClaimURLsByShortCodesFunc != nil {
+		return m.ClaimURLsByShortCodesFunc(ctx, arg)
+	}
+	return nil, nil
+}
+
+func (m *mockURLRepository) DeleteURLByShortCode(ctx context.Context, arg repository.DeleteURLByShortCodeParams) (int64, error) {
+	m.deleteURLByShortCodeCalls++
+	if m.DeleteURLByShortCodeFunc != nil {
+		return m.DeleteURLByShortCodeFunc(ctx, arg)
+	}
+	return 0, nil
 }
 
 // Mock for ShortCodeGenerator
@@ -70,8 +129,11 @@ func TestURLService_CreateShortCode(t *testing.T) {
 			},
 			setupRepo: func() *mockURLRepository {
 				return &mockURLRepository{
-					CreateURLFunc: func(ctx context.Context, arg repository.CreateURLParams) (string, error) {
-						return arg.ShortCode, nil
+					CreateURLFunc: func(ctx context.Context, arg repository.CreateURLParams) (repository.CreateURLRow, error) {
+						return repository.CreateURLRow{
+							ShortCode: arg.ShortCode,
+							ExpiresAt: arg.ExpiresAt,
+						}, nil
 					},
 				}
 			},
@@ -120,15 +182,18 @@ func TestURLService_CreateShortCode(t *testing.T) {
 			setupRepo: func() *mockURLRepository {
 				callCount := 0
 				return &mockURLRepository{
-					CreateURLFunc: func(ctx context.Context, arg repository.CreateURLParams) (string, error) {
+					CreateURLFunc: func(ctx context.Context, arg repository.CreateURLParams) (repository.CreateURLRow, error) {
 						callCount++
 						if callCount == 1 {
-							return "", &pgconn.PgError{
+							return repository.CreateURLRow{}, &pgconn.PgError{
 								Code:           "23505",
 								ConstraintName: "urls_short_code_unique",
 							}
 						}
-						return arg.ShortCode, nil
+						return repository.CreateURLRow{
+							ShortCode: arg.ShortCode,
+							ExpiresAt: arg.ExpiresAt,
+						}, nil
 					},
 				}
 			},
@@ -148,8 +213,8 @@ func TestURLService_CreateShortCode(t *testing.T) {
 			},
 			setupRepo: func() *mockURLRepository {
 				return &mockURLRepository{
-					CreateURLFunc: func(ctx context.Context, arg repository.CreateURLParams) (string, error) {
-						return "", &pgconn.PgError{
+					CreateURLFunc: func(ctx context.Context, arg repository.CreateURLParams) (repository.CreateURLRow, error) {
+						return repository.CreateURLRow{}, &pgconn.PgError{
 							Code:           "23505",
 							ConstraintName: "urls_short_code_unique",
 						}
@@ -171,8 +236,8 @@ func TestURLService_CreateShortCode(t *testing.T) {
 			},
 			setupRepo: func() *mockURLRepository {
 				return &mockURLRepository{
-					CreateURLFunc: func(ctx context.Context, arg repository.CreateURLParams) (string, error) {
-						return "", errors.New("connection failed")
+					CreateURLFunc: func(ctx context.Context, arg repository.CreateURLParams) (repository.CreateURLRow, error) {
+						return repository.CreateURLRow{}, errors.New("connection failed")
 					},
 				}
 			},
@@ -203,8 +268,8 @@ func TestURLService_CreateShortCode(t *testing.T) {
 				if err != nil {
 					t.Fatalf("did not expect error, got %v", err)
 				}
-				if result != tt.expectedShortCode {
-					t.Errorf("expected shortCode %s, got %s", tt.expectedShortCode, result)
+				if result.ShortCode != tt.expectedShortCode {
+					t.Errorf("expected shortCode %s, got %s", tt.expectedShortCode, result.ShortCode)
 				}
 			}
 
@@ -213,4 +278,781 @@ func TestURLService_CreateShortCode(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestURLService_CreateShortCode_WithAuthenticatedUser(t *testing.T) {
+	testUserID := uuid.New()
+	generator := &mockShortCodeGenerator{
+		GenerateShortCodeFunc: func() (string, error) {
+			return "abcDEFg", nil
+		},
+	}
+
+	t.Run("authenticated context sets user_id", func(t *testing.T) {
+		var capturedArg repository.CreateURLParams
+		repo := &mockURLRepository{
+			CreateURLFunc: func(ctx context.Context, arg repository.CreateURLParams) (repository.CreateURLRow, error) {
+				capturedArg = arg
+				return repository.CreateURLRow{
+					ShortCode: arg.ShortCode,
+					ExpiresAt: arg.ExpiresAt,
+				}, nil
+			},
+		}
+
+		srv := service.NewURLService(repo, generator)
+		ctx := service.ContextWithUserID(context.Background(), testUserID)
+
+		result, err := srv.CreateShortCode(ctx, "https://example.com")
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+
+		if result.ShortCode != "abcDEFg" {
+			t.Errorf("expected ShortCode abcDEFg, got %s", result.ShortCode)
+		}
+		if result.ExpiresAt != nil {
+			t.Errorf("expected nil ExpiresAt for authenticated user, got %v", result.ExpiresAt)
+		}
+
+		if !capturedArg.UserID.Valid {
+			t.Fatal("expected UserID to be valid")
+		}
+		if capturedArg.UserID.Bytes != testUserID {
+			t.Errorf("expected UserID %v, got %v", testUserID, capturedArg.UserID.Bytes)
+		}
+		if capturedArg.ExpiresAt.Valid {
+			t.Error("expected ExpiresAt.Valid to be false for authenticated shorten")
+		}
+	})
+
+	t.Run("unauthenticated context leaves user_id invalid (null)", func(t *testing.T) {
+		var capturedArg repository.CreateURLParams
+		repo := &mockURLRepository{
+			CreateURLFunc: func(ctx context.Context, arg repository.CreateURLParams) (repository.CreateURLRow, error) {
+				capturedArg = arg
+				return repository.CreateURLRow{
+					ShortCode: arg.ShortCode,
+					ExpiresAt: arg.ExpiresAt,
+				}, nil
+			},
+		}
+
+		srv := service.NewURLService(repo, generator)
+
+		result, err := srv.CreateShortCode(context.Background(), "https://example.com")
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+
+		if result.ShortCode != "abcDEFg" {
+			t.Errorf("expected ShortCode abcDEFg, got %s", result.ShortCode)
+		}
+		if result.ExpiresAt == nil {
+			t.Fatal("expected non-nil ExpiresAt for anonymous user")
+		}
+
+		if capturedArg.UserID.Valid {
+			t.Error("expected UserID.Valid to be false for anonymous shorten")
+		}
+		if !capturedArg.ExpiresAt.Valid {
+			t.Fatal("expected ExpiresAt.Valid to be true for anonymous shorten")
+		}
+		timeUntilExpiration := time.Until(capturedArg.ExpiresAt.Time)
+		if timeUntilExpiration < 6*24*time.Hour || timeUntilExpiration > 8*24*time.Hour {
+			t.Errorf("expected expiration around 7 days, got %v", timeUntilExpiration)
+		}
+	})
+}
+
+func TestURLService_GetURLsByUserID(t *testing.T) {
+	generator := &mockShortCodeGenerator{}
+	testUserID := uuid.MustParse("550e8400-e29b-41d4-a716-446655440000")
+	now := time.Now().Truncate(time.Second)
+
+	t.Run("successful retrieval of user URLs", func(t *testing.T) {
+		repo := &mockURLRepository{
+			GetURLsByUserIDFunc: func(ctx context.Context, userID pgtype.UUID) ([]repository.GetURLsByUserIDRow, error) {
+				if !userID.Valid || userID.Bytes != testUserID {
+					t.Fatalf("expected userID %v, got %v", testUserID, userID.Bytes)
+				}
+				return []repository.GetURLsByUserIDRow{
+					{
+						OriginalUrl: "https://example.com/one",
+						ShortCode:   "code111",
+						CreatedAt:   pgtype.Timestamptz{Time: now, Valid: true},
+						ClickCount:  5,
+					},
+					{
+						OriginalUrl: "https://example.com/two",
+						ShortCode:   "code222",
+						CreatedAt:   pgtype.Timestamptz{Time: now.Add(-time.Hour), Valid: true},
+						ClickCount:  0,
+					},
+				}, nil
+			},
+		}
+
+		srv := service.NewURLService(repo, generator)
+		urls, err := srv.GetURLsByUserID(context.Background(), testUserID)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+
+		if len(urls) != 2 {
+			t.Fatalf("expected 2 URLs, got %d", len(urls))
+		}
+
+		if urls[0].OriginalURL != "https://example.com/one" || urls[0].ShortCode != "code111" || urls[0].ClickCount != 5 {
+			t.Errorf("unexpected first item: %+v", urls[0])
+		}
+		if urls[1].OriginalURL != "https://example.com/two" || urls[1].ShortCode != "code222" || urls[1].ClickCount != 0 {
+			t.Errorf("unexpected second item: %+v", urls[1])
+		}
+	})
+
+	t.Run("returns empty slice when user has no URLs", func(t *testing.T) {
+		repo := &mockURLRepository{
+			GetURLsByUserIDFunc: func(ctx context.Context, userID pgtype.UUID) ([]repository.GetURLsByUserIDRow, error) {
+				return []repository.GetURLsByUserIDRow{}, nil
+			},
+		}
+
+		srv := service.NewURLService(repo, generator)
+		urls, err := srv.GetURLsByUserID(context.Background(), testUserID)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+
+		if urls == nil {
+			t.Fatal("expected non-nil empty slice, got nil")
+		}
+		if len(urls) != 0 {
+			t.Fatalf("expected 0 URLs, got %d", len(urls))
+		}
+	})
+
+	t.Run("returns error on repository failure", func(t *testing.T) {
+		dbErr := errors.New("database connection failed")
+		repo := &mockURLRepository{
+			GetURLsByUserIDFunc: func(ctx context.Context, userID pgtype.UUID) ([]repository.GetURLsByUserIDRow, error) {
+				return nil, dbErr
+			},
+		}
+
+		srv := service.NewURLService(repo, generator)
+		urls, err := srv.GetURLsByUserID(context.Background(), testUserID)
+		if err == nil {
+			t.Fatal("expected error, got nil")
+		}
+		if !errors.Is(err, dbErr) {
+			t.Errorf("expected wrapped dbErr, got %v", err)
+		}
+		if urls != nil {
+			t.Errorf("expected nil result on error, got %+v", urls)
+		}
+	})
+}
+
+func TestURLService_ResolveShortCode(t *testing.T) {
+	generator := &mockShortCodeGenerator{}
+
+	t.Run("successful resolution increments click count", func(t *testing.T) {
+		repo := &mockURLRepository{
+			GetURLFunc: func(ctx context.Context, shortCode string) (string, error) {
+				if shortCode != "validCode" {
+					t.Fatalf("expected shortCode validCode, got %s", shortCode)
+				}
+				return "https://example.com/target", nil
+			},
+			IncrementClickCountFunc: func(ctx context.Context, shortCode string) error {
+				if shortCode != "validCode" {
+					t.Fatalf("expected shortCode validCode, got %s", shortCode)
+				}
+				return nil
+			},
+		}
+
+		srv := service.NewURLService(repo, generator)
+		url, err := srv.ResolveShortCode(context.Background(), "validCode")
+		if err != nil {
+			t.Fatalf("unexpected error resolving short code: %v", err)
+		}
+		if url != "https://example.com/target" {
+			t.Errorf("expected https://example.com/target, got %s", url)
+		}
+		if repo.incrementClickCalls != 1 {
+			t.Errorf("expected 1 increment click call, got %d", repo.incrementClickCalls)
+		}
+	})
+
+	t.Run("non-existing short code returns ErrNoURLFound", func(t *testing.T) {
+		repo := &mockURLRepository{
+			GetURLFunc: func(ctx context.Context, shortCode string) (string, error) {
+				return "", pgx.ErrNoRows
+			},
+		}
+
+		srv := service.NewURLService(repo, generator)
+		_, err := srv.ResolveShortCode(context.Background(), "nonexistent")
+		if !errors.Is(err, service.ErrNoURLFound) {
+			t.Errorf("expected ErrNoURLFound, got %v", err)
+		}
+		if repo.incrementClickCalls != 0 {
+			t.Errorf("expected 0 increment click calls, got %d", repo.incrementClickCalls)
+		}
+	})
+
+	t.Run("repository error on GetURL", func(t *testing.T) {
+		dbErr := errors.New("db error")
+		repo := &mockURLRepository{
+			GetURLFunc: func(ctx context.Context, shortCode string) (string, error) {
+				return "", dbErr
+			},
+		}
+
+		srv := service.NewURLService(repo, generator)
+		_, err := srv.ResolveShortCode(context.Background(), "someCode")
+		if err == nil {
+			t.Fatal("expected error, got nil")
+		}
+		if !errors.Is(err, dbErr) {
+			t.Errorf("expected wrapped dbErr, got %v", err)
+		}
+	})
+
+	t.Run("error incrementing click count", func(t *testing.T) {
+		incErr := errors.New("increment failed")
+		repo := &mockURLRepository{
+			GetURLFunc: func(ctx context.Context, shortCode string) (string, error) {
+				return "https://example.com", nil
+			},
+			IncrementClickCountFunc: func(ctx context.Context, shortCode string) error {
+				return incErr
+			},
+		}
+
+		srv := service.NewURLService(repo, generator)
+		_, err := srv.ResolveShortCode(context.Background(), "someCode")
+		if err == nil {
+			t.Fatal("expected error, got nil")
+		}
+		if !errors.Is(err, incErr) {
+			t.Errorf("expected wrapped incErr, got %v", err)
+		}
+	})
+}
+
+func TestURLService_GetURLStats(t *testing.T) {
+	generator := &mockShortCodeGenerator{}
+	now := time.Now().Truncate(time.Second)
+
+	t.Run("successful stats retrieval", func(t *testing.T) {
+		repo := &mockURLRepository{
+			GetURLStatsFunc: func(ctx context.Context, shortCode string) (repository.GetURLStatsRow, error) {
+				if shortCode != "statCode" {
+					t.Fatalf("expected statCode, got %s", shortCode)
+				}
+				return repository.GetURLStatsRow{
+					ClickCount: 42,
+					CreatedAt:  pgtype.Timestamptz{Time: now, Valid: true},
+				}, nil
+			},
+		}
+
+		srv := service.NewURLService(repo, generator)
+		stats, err := srv.GetURLStats(context.Background(), "statCode")
+		if err != nil {
+			t.Fatalf("unexpected error getting stats: %v", err)
+		}
+		if stats.ClickCount != 42 {
+			t.Errorf("expected ClickCount 42, got %d", stats.ClickCount)
+		}
+		if !stats.CreatedAt.Time.Equal(now) {
+			t.Errorf("expected CreatedAt %v, got %v", now, stats.CreatedAt.Time)
+		}
+	})
+
+	t.Run("non-existing short code returns ErrNoURLFound", func(t *testing.T) {
+		repo := &mockURLRepository{
+			GetURLStatsFunc: func(ctx context.Context, shortCode string) (repository.GetURLStatsRow, error) {
+				return repository.GetURLStatsRow{}, pgx.ErrNoRows
+			},
+		}
+
+		srv := service.NewURLService(repo, generator)
+		_, err := srv.GetURLStats(context.Background(), "missingCode")
+		if !errors.Is(err, service.ErrNoURLFound) {
+			t.Errorf("expected ErrNoURLFound, got %v", err)
+		}
+	})
+
+	t.Run("repository error on GetURLStats", func(t *testing.T) {
+		dbErr := errors.New("db error")
+		repo := &mockURLRepository{
+			GetURLStatsFunc: func(ctx context.Context, shortCode string) (repository.GetURLStatsRow, error) {
+				return repository.GetURLStatsRow{}, dbErr
+			},
+		}
+
+		srv := service.NewURLService(repo, generator)
+		_, err := srv.GetURLStats(context.Background(), "someCode")
+		if err == nil {
+			t.Fatal("expected error, got nil")
+		}
+		if !errors.Is(err, dbErr) {
+			t.Errorf("expected wrapped dbErr, got %v", err)
+		}
+	})
+}
+
+func TestURLService_CreateShortCode_HostValidation(t *testing.T) {
+	generator := &mockShortCodeGenerator{
+		GenerateShortCodeFunc: func() (string, error) {
+			return "validCode", nil
+		},
+	}
+	repo := &mockURLRepository{
+		CreateURLFunc: func(ctx context.Context, arg repository.CreateURLParams) (repository.CreateURLRow, error) {
+			return repository.CreateURLRow{
+				ShortCode: arg.ShortCode,
+				ExpiresAt: arg.ExpiresAt,
+			}, nil
+		},
+	}
+	srv := service.NewURLService(repo, generator)
+
+	tests := []struct {
+		name        string
+		rawURL      string
+		expectedErr error
+	}{
+		{
+			name:        "Loopback IPv4 is rejected",
+			rawURL:      "https://127.0.0.1/path",
+			expectedErr: service.ErrNoHost,
+		},
+		{
+			name:        "Loopback IPv6 is rejected",
+			rawURL:      "https://[::1]/path",
+			expectedErr: service.ErrNoHost,
+		},
+		{
+			name:        "Private IPv4 10.x is rejected",
+			rawURL:      "https://10.0.0.1/path",
+			expectedErr: service.ErrNoHost,
+		},
+		{
+			name:        "Private IPv4 192.168.x is rejected",
+			rawURL:      "https://192.168.1.1/path",
+			expectedErr: service.ErrNoHost,
+		},
+		{
+			name:        "Private IPv4 172.16.x is rejected",
+			rawURL:      "https://172.16.0.1/path",
+			expectedErr: service.ErrNoHost,
+		},
+		{
+			name:        "Link-local IPv4 is rejected",
+			rawURL:      "https://169.254.1.1/path",
+			expectedErr: service.ErrNoHost,
+		},
+		{
+			name:        "Valid public IP is accepted",
+			rawURL:      "https://8.8.8.8/dns",
+			expectedErr: nil,
+		},
+		{
+			name:        "Localhost is rejected",
+			rawURL:      "https://localhost/path",
+			expectedErr: service.ErrNoHost,
+		},
+		{
+			name:        "Host without dot is rejected",
+			rawURL:      "https://example/path",
+			expectedErr: service.ErrNoHost,
+		},
+		{
+			name:        "Host with trailing dot is rejected",
+			rawURL:      "https://example.com./path",
+			expectedErr: service.ErrNoHost,
+		},
+		{
+			name:        "Empty host is rejected",
+			rawURL:      "https:///path",
+			expectedErr: service.ErrNoHost,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			_, err := srv.CreateShortCode(context.Background(), tt.rawURL)
+			if tt.expectedErr != nil {
+				if !errors.Is(err, tt.expectedErr) {
+					t.Errorf("expected error %v, got %v", tt.expectedErr, err)
+				}
+			} else {
+				if err != nil {
+					t.Errorf("unexpected error: %v", err)
+				}
+			}
+		})
+	}
+}
+
+func TestURLService_StartExpiredURLsCleanup(t *testing.T) {
+	generator := &mockShortCodeGenerator{}
+	testLogger := slog.New(slog.NewTextHandler(io.Discard, nil))
+
+	t.Run("initial cleanup runs and context cancellation terminates", func(t *testing.T) {
+		var callCount atomic.Int32
+		repo := &mockURLRepository{
+			DeleteExpiredURLsFunc: func(ctx context.Context) error {
+				callCount.Add(1)
+				return nil
+			},
+		}
+
+		srv := service.NewURLService(repo, generator)
+		ctx, cancel := context.WithCancel(context.Background())
+
+		done := make(chan struct{})
+		go func() {
+			srv.StartExpiredURLsCleanup(ctx, 1*time.Hour, testLogger)
+			close(done)
+		}()
+
+		// Wait for initial cleanup to be invoked
+		for range 50 {
+			if callCount.Load() >= 1 {
+				break
+			}
+			time.Sleep(2 * time.Millisecond)
+		}
+
+		if callCount.Load() < 1 {
+			t.Errorf("expected at least 1 call for initial cleanup, got %d", callCount.Load())
+		}
+
+		cancel()
+
+		select {
+		case <-done:
+			// Success, exited after cancellation
+		case <-time.After(1 * time.Second):
+			t.Fatal("StartExpiredURLsCleanup did not exit upon context cancellation")
+		}
+	})
+
+	t.Run("periodic cleanup runs repeatedly on ticker", func(t *testing.T) {
+		var callCount atomic.Int32
+		repo := &mockURLRepository{
+			DeleteExpiredURLsFunc: func(ctx context.Context) error {
+				callCount.Add(1)
+				return nil
+			},
+		}
+
+		srv := service.NewURLService(repo, generator)
+		ctx, cancel := context.WithCancel(context.Background())
+		defer cancel()
+
+		done := make(chan struct{})
+		go func() {
+			srv.StartExpiredURLsCleanup(ctx, 5*time.Millisecond, testLogger)
+			close(done)
+		}()
+
+		// Wait until ticker fires multiple times (initial + at least 2 ticks)
+		for range 100 {
+			if callCount.Load() >= 3 {
+				break
+			}
+			time.Sleep(5 * time.Millisecond)
+		}
+
+		if count := callCount.Load(); count < 3 {
+			t.Errorf("expected at least 3 calls, got %d", count)
+		}
+
+		cancel()
+
+		select {
+		case <-done:
+		case <-time.After(1 * time.Second):
+			t.Fatal("StartExpiredURLsCleanup did not exit upon context cancellation")
+		}
+	})
+
+	t.Run("handles error from DeleteExpiredURLs gracefully without panic", func(t *testing.T) {
+		var callCount atomic.Int32
+		repo := &mockURLRepository{
+			DeleteExpiredURLsFunc: func(ctx context.Context) error {
+				callCount.Add(1)
+				return errors.New("database unavailable")
+			},
+		}
+
+		srv := service.NewURLService(repo, generator)
+		ctx, cancel := context.WithCancel(context.Background())
+
+		done := make(chan struct{})
+		go func() {
+			srv.StartExpiredURLsCleanup(ctx, 5*time.Millisecond, testLogger)
+			close(done)
+		}()
+
+		// Wait for both initial and periodic calls with error
+		for range 100 {
+			if callCount.Load() >= 2 {
+				break
+			}
+			time.Sleep(5 * time.Millisecond)
+		}
+
+		if count := callCount.Load(); count < 2 {
+			t.Errorf("expected at least 2 calls despite errors, got %d", count)
+		}
+
+		cancel()
+
+		select {
+		case <-done:
+		case <-time.After(1 * time.Second):
+			t.Fatal("StartExpiredURLsCleanup did not exit upon cancellation")
+		}
+	})
+
+	t.Run("exits immediately when context is already canceled", func(t *testing.T) {
+		repo := &mockURLRepository{
+			DeleteExpiredURLsFunc: func(ctx context.Context) error {
+				return ctx.Err()
+			},
+		}
+
+		srv := service.NewURLService(repo, generator)
+		ctx, cancel := context.WithCancel(context.Background())
+		cancel()
+
+		done := make(chan struct{})
+		go func() {
+			srv.StartExpiredURLsCleanup(ctx, 1*time.Hour, testLogger)
+			close(done)
+		}()
+
+		select {
+		case <-done:
+		case <-time.After(500 * time.Millisecond):
+			t.Fatal("StartExpiredURLsCleanup did not exit immediately with pre-canceled context")
+		}
+	})
+
+	t.Run("resilient with nil logger and non-positive interval", func(t *testing.T) {
+		repo := &mockURLRepository{
+			DeleteExpiredURLsFunc: func(ctx context.Context) error {
+				return errors.New("db error")
+			},
+		}
+
+		srv := service.NewURLService(repo, generator)
+		ctx, cancel := context.WithCancel(context.Background())
+
+		done := make(chan struct{})
+		go func() {
+			// interval <= 0 and logger == nil must not panic
+			srv.StartExpiredURLsCleanup(ctx, 0, nil)
+			close(done)
+		}()
+
+		time.Sleep(10 * time.Millisecond)
+		cancel()
+
+		select {
+		case <-done:
+		case <-time.After(1 * time.Second):
+			t.Fatal("StartExpiredURLsCleanup did not exit")
+		}
+	})
+}
+
+func TestURLService_ClaimURLs(t *testing.T) {
+	generator := &mockShortCodeGenerator{}
+	userID := uuid.New()
+
+	t.Run("successfully claims multiple short codes with deduplication and URL extraction", func(t *testing.T) {
+		repo := &mockURLRepository{
+			ClaimURLsByShortCodesFunc: func(ctx context.Context, arg repository.ClaimURLsByShortCodesParams) ([]string, error) {
+				if arg.UserID.Bytes != userID {
+					t.Fatalf("expected userID %v, got %v", userID, arg.UserID.Bytes)
+				}
+				// Verify deduplication and trimming/extraction
+				expectedCodes := []string{"abc1234", "def5678"}
+				if len(arg.ShortCodes) != len(expectedCodes) {
+					t.Fatalf("expected %d codes, got %d", len(expectedCodes), len(arg.ShortCodes))
+				}
+				for i, code := range expectedCodes {
+					if arg.ShortCodes[i] != code {
+						t.Errorf("expected code[%d] = %q, got %q", i, code, arg.ShortCodes[i])
+					}
+				}
+				return []string{"abc1234", "def5678"}, nil
+			},
+		}
+
+		srv := service.NewURLService(repo, generator)
+		input := []string{
+			"  abc1234  ",
+			"http://localhost:8080/def5678",
+			"abc1234",          // duplicate
+			"   ",              // empty after trim
+			"https://site/   ", // empty after extraction
+		}
+
+		claimed, err := srv.ClaimURLs(context.Background(), userID, input)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+
+		if len(claimed) != 2 || claimed[0] != "abc1234" || claimed[1] != "def5678" {
+			t.Fatalf("unexpected claimed slice: %v", claimed)
+		}
+		if repo.claimURLsCalls != 1 {
+			t.Errorf("expected 1 repo call, got %d", repo.claimURLsCalls)
+		}
+	})
+
+	t.Run("returns error when userID is nil", func(t *testing.T) {
+		repo := &mockURLRepository{}
+		srv := service.NewURLService(repo, generator)
+
+		_, err := srv.ClaimURLs(context.Background(), uuid.Nil, []string{"code1"})
+		if !errors.Is(err, service.ErrInvalidUserID) {
+			t.Fatalf("expected ErrInvalidUserID, got %v", err)
+		}
+		if repo.claimURLsCalls != 0 {
+			t.Errorf("expected 0 repo calls, got %d", repo.claimURLsCalls)
+		}
+	})
+
+	t.Run("returns empty slice when input is empty", func(t *testing.T) {
+		repo := &mockURLRepository{}
+		srv := service.NewURLService(repo, generator)
+
+		claimed, err := srv.ClaimURLs(context.Background(), userID, []string{})
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if len(claimed) != 0 {
+			t.Fatalf("expected empty slice, got %v", claimed)
+		}
+		if repo.claimURLsCalls != 0 {
+			t.Errorf("expected 0 repo calls, got %d", repo.claimURLsCalls)
+		}
+	})
+
+	t.Run("returns empty slice when input has only blank strings", func(t *testing.T) {
+		repo := &mockURLRepository{}
+		srv := service.NewURLService(repo, generator)
+
+		claimed, err := srv.ClaimURLs(context.Background(), userID, []string{"   ", "\t", ""})
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if len(claimed) != 0 {
+			t.Fatalf("expected empty slice, got %v", claimed)
+		}
+		if repo.claimURLsCalls != 0 {
+			t.Errorf("expected 0 repo calls, got %d", repo.claimURLsCalls)
+		}
+	})
+
+	t.Run("propagates repository error", func(t *testing.T) {
+		repo := &mockURLRepository{
+			ClaimURLsByShortCodesFunc: func(ctx context.Context, arg repository.ClaimURLsByShortCodesParams) ([]string, error) {
+				return nil, errors.New("db error")
+			},
+		}
+		srv := service.NewURLService(repo, generator)
+
+		_, err := srv.ClaimURLs(context.Background(), userID, []string{"code1"})
+		if err == nil || !errors.Is(err, errors.New("failed to claim URLs")) && err.Error() != "failed to claim URLs: db error" {
+			t.Fatalf("expected error wrapping db error, got %v", err)
+		}
+	})
+}
+
+func TestURLService_DeleteURLByShortCode(t *testing.T) {
+	generator := &mockShortCodeGenerator{}
+	userID := uuid.MustParse("550e8400-e29b-41d4-a716-446655440000")
+
+	t.Run("successfully deletes own URL when repository reports 1 row affected", func(t *testing.T) {
+		var capturedArg repository.DeleteURLByShortCodeParams
+		repo := &mockURLRepository{
+			DeleteURLByShortCodeFunc: func(ctx context.Context, arg repository.DeleteURLByShortCodeParams) (int64, error) {
+				capturedArg = arg
+				return 1, nil
+			},
+		}
+
+		srv := service.NewURLService(repo, generator)
+		err := srv.DeleteURLByShortCode(context.Background(), "  validCode  ", userID)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+
+		if capturedArg.ShortCode != "validCode" {
+			t.Errorf("expected trimmed short code 'validCode', got %q", capturedArg.ShortCode)
+		}
+		if !capturedArg.UserID.Valid || capturedArg.UserID.Bytes != userID {
+			t.Errorf("expected UserID %v, got %v", userID, capturedArg.UserID.Bytes)
+		}
+		if repo.deleteURLByShortCodeCalls != 1 {
+			t.Errorf("expected 1 delete call, got %d", repo.deleteURLByShortCodeCalls)
+		}
+	})
+
+	t.Run("returns ErrNoURLFound when URL does not exist or belongs to another user (0 rows affected)", func(t *testing.T) {
+		repo := &mockURLRepository{
+			DeleteURLByShortCodeFunc: func(ctx context.Context, arg repository.DeleteURLByShortCodeParams) (int64, error) {
+				return 0, nil
+			},
+		}
+
+		srv := service.NewURLService(repo, generator)
+		err := srv.DeleteURLByShortCode(context.Background(), "notOwnedOrMissing", userID)
+		if !errors.Is(err, service.ErrNoURLFound) {
+			t.Fatalf("expected ErrNoURLFound, got %v", err)
+		}
+		if repo.deleteURLByShortCodeCalls != 1 {
+			t.Errorf("expected 1 delete call, got %d", repo.deleteURLByShortCodeCalls)
+		}
+	})
+
+	t.Run("returns ErrInvalidUserID when userID is uuid.Nil without calling repository", func(t *testing.T) {
+		repo := &mockURLRepository{}
+		srv := service.NewURLService(repo, generator)
+
+		err := srv.DeleteURLByShortCode(context.Background(), "validCode", uuid.Nil)
+		if !errors.Is(err, service.ErrInvalidUserID) {
+			t.Fatalf("expected ErrInvalidUserID, got %v", err)
+		}
+		if repo.deleteURLByShortCodeCalls != 0 {
+			t.Errorf("expected 0 delete calls, got %d", repo.deleteURLByShortCodeCalls)
+		}
+	})
+
+	t.Run("propagates repository error", func(t *testing.T) {
+		dbErr := errors.New("db error")
+		repo := &mockURLRepository{
+			DeleteURLByShortCodeFunc: func(ctx context.Context, arg repository.DeleteURLByShortCodeParams) (int64, error) {
+				return 0, dbErr
+			},
+		}
+
+		srv := service.NewURLService(repo, generator)
+		err := srv.DeleteURLByShortCode(context.Background(), "validCode", userID)
+		if err == nil || !errors.Is(err, dbErr) {
+			t.Fatalf("expected error wrapping dbErr, got %v", err)
+		}
+	})
 }

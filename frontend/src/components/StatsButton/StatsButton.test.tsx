@@ -41,6 +41,7 @@ describe("StatsButton Component", () => {
         displayedStats={false}
         setDisplayedStats={setDisplayedStatsMock}
         setStats={setStatsMock}
+        accessToken="test-token"
       />,
     );
 
@@ -48,7 +49,7 @@ describe("StatsButton Component", () => {
     fireEvent.click(button);
 
     await waitFor(() => {
-      expect(urlServices.getURLStats).toHaveBeenCalledWith(shortURL);
+      expect(urlServices.getURLStats).toHaveBeenCalledWith(shortURL, "test-token");
       expect(setStatsMock).toHaveBeenCalledWith(mockStats);
       expect(setDisplayedStatsMock).toHaveBeenCalled();
     });
@@ -63,6 +64,7 @@ describe("StatsButton Component", () => {
         displayedStats={false}
         setDisplayedStats={setDisplayedStatsMock}
         setStats={setStatsMock}
+        accessToken="test-token"
       />,
     );
 
@@ -70,7 +72,7 @@ describe("StatsButton Component", () => {
     fireEvent.click(button);
 
     await waitFor(() => {
-      expect(urlServices.getURLStats).toHaveBeenCalledWith(shortURL);
+      expect(urlServices.getURLStats).toHaveBeenCalledWith(shortURL, "test-token");
       expect(toast.error).toHaveBeenCalledWith("Could not load stats. Please try again later.");
       expect(setDisplayedStatsMock).not.toHaveBeenCalled();
       expect(button).toHaveTextContent("Analytics");

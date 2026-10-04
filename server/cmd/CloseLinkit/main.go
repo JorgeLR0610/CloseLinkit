@@ -16,6 +16,7 @@ import (
 	"github.com/JorgeLR0610/CloseLinkit/internal/service"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/swaggest/swgui/v5emb"
+	"golang.org/x/time/rate"
 )
 
 func main() {
@@ -37,9 +38,36 @@ func main() {
 	}
 	allowedOrigins = strings.Split(corsOriginRaw, ",")
 
-	// shortenRateLimiter middleware
-	shortenRateLimiter := middleware.NewIPRateLimiter(1, 5, 15*time.Minute, 10*time.Minute)
-	statsRateLimiter := middleware.NewIPRateLimiter(5, 10, 5*time.Minute, 2*time.Minute)
+	// Load JWT secret env var
+	jwtSecret := os.Getenv("JWT_SECRET")
+	if jwtSecret == "" {
+		logger.Error(
+			"could not load JWT_SECRET environment variable",
+		)
+		os.Exit(1)
+	}
+
+	// Rate limiter middlewares
+	shortenRateLimiter := middleware.NewIPRateLimiter(
+		rate.Every(5*time.Second),
+		5,
+		15*time.Minute,
+		2*time.Minute,
+	)
+
+	statsRateLimiter := middleware.NewIPRateLimiter(
+		rate.Every(1*time.Second),
+		10,
+		10*time.Minute,
+		2*time.Minute,
+	)
+
+	loginRateLimiter := middleware.NewIPRateLimiter(
+		rate.Every(30*time.Second),
+		5,
+		30*time.Minute,
+		1*time.Minute,
+	)
 
 	ctx := context.Background()
 
@@ -78,13 +106,21 @@ func main() {
 
 	// Services
 	urlsSvc := service.NewURLService(queries, gen)
+	authSvc := service.NewAuthService(queries, service.AuthConfig{
+		JWTSecret: []byte(jwtSecret),
+	})
 
 	// Handlers
 	urlsHandler := api.NewURLHandler(urlsSvc, logger, os.Getenv("BASE_URL"))
+	authHandler := api.NewAuthHandler(authSvc, logger)
 
-	// Background goroutines to clean up inactive IPs
+	// Goroutines to clean up inactive IPs
 	go shortenRateLimiter.CleanInactiveIPs()
 	go statsRateLimiter.CleanInactiveIPs()
+
+	// Goroutine to clean expired refresh tokens and URLs
+	go authSvc.StartRefreshTokenCleanup(ctx, 1*time.Hour, logger)
+	go urlsSvc.StartExpiredURLsCleanup(ctx, 12*time.Hour, logger)
 
 	mux := http.NewServeMux()
 
@@ -93,7 +129,9 @@ func main() {
 		"POST /api/v1/shorten",
 		middleware.RequestLogging(logger)(
 			middleware.RateLimiting(shortenRateLimiter, logger)(
-				http.HandlerFunc(urlsHandler.HandlerCreateURL),
+				middleware.OptionalAuth(authSvc, logger)(
+					http.HandlerFunc(urlsHandler.HandlerCreateURL),
+				),
 			),
 		),
 	)
@@ -102,7 +140,27 @@ func main() {
 		"GET /api/v1/{shortCode}/stats",
 		middleware.RequestLogging(logger)(
 			middleware.RateLimiting(statsRateLimiter, logger)(
-				http.HandlerFunc(urlsHandler.HandlerGetURLStats),
+				middleware.RequireAuth(authSvc, logger)(
+					http.HandlerFunc(urlsHandler.HandlerGetURLStats),
+				),
+			),
+		),
+	)
+
+	mux.Handle(
+		"GET /api/v1/urls",
+		middleware.RequestLogging(logger)(
+			middleware.RequireAuth(authSvc, logger)(
+				http.HandlerFunc(urlsHandler.HandlerGetUserURLs),
+			),
+		),
+	)
+
+	mux.Handle(
+		"POST /api/v1/urls/claim",
+		middleware.RequestLogging(logger)(
+			middleware.RequireAuth(authSvc, logger)(
+				http.HandlerFunc(urlsHandler.HandlerClaimURLs),
 			),
 		),
 	)
@@ -111,6 +169,46 @@ func main() {
 		"GET /{shortCode}",
 		middleware.RequestLogging(logger)(
 			http.HandlerFunc(urlsHandler.HandlerResolveShortURL),
+		),
+	)
+
+	mux.Handle(
+		"DELETE /api/v1/urls/{shortCode}",
+		middleware.RequestLogging(logger)(
+			middleware.RequireAuth(authSvc, logger)(
+				http.HandlerFunc(urlsHandler.HandlerDeleteURL),
+			),
+		),
+	)
+
+	// Auth endpoints
+	mux.Handle(
+		"POST /api/v1/auth/register",
+		middleware.RequestLogging(logger)(
+			http.HandlerFunc(authHandler.HandlerRegister),
+		),
+	)
+
+	mux.Handle(
+		"POST /api/v1/auth/login",
+		middleware.RequestLogging(logger)(
+			middleware.RateLimiting(loginRateLimiter, logger)(
+				http.HandlerFunc(authHandler.HandlerLogin),
+			),
+		),
+	)
+
+	mux.Handle(
+		"POST /api/v1/auth/refresh",
+		middleware.RequestLogging(logger)(
+			http.HandlerFunc(authHandler.HandlerRefreshToken),
+		),
+	)
+
+	mux.Handle(
+		"POST /api/v1/auth/logout",
+		middleware.RequestLogging(logger)(
+			http.HandlerFunc(authHandler.HandlerLogout),
 		),
 	)
 

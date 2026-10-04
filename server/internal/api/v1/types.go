@@ -2,13 +2,67 @@ package api
 
 import (
 	"time"
+
+	"github.com/JorgeLR0610/CloseLinkit/internal/service"
 )
 
 type CreateURLResponse struct {
-	ShortURL string `json:"short_url"`
+	ShortURL  string     `json:"short_url"`
+	ExpiresAt *time.Time `json:"expires_at"`
 }
 
 type GetURLStatsResponse struct {
 	ClickCount int       `json:"click_count"`
 	CreatedAt  time.Time `json:"created_at"`
+}
+
+type UserURLResponse struct {
+	OriginalURL string    `json:"original_url"`
+	ShortCode   string    `json:"short_code"`
+	ShortURL    string    `json:"short_url"`
+	CreatedAt   time.Time `json:"created_at"`
+	ClickCount  int       `json:"click_count"`
+}
+
+type RegisterRequest struct {
+	Email    string `json:"email"`
+	Password string `json:"password"`
+}
+
+type RegisterResponse = service.UserResponse
+
+type LoginRequest struct {
+	Email    string `json:"email"`
+	Password string `json:"password"`
+}
+
+type LoginResponse struct {
+	AccessToken  string               `json:"access_token"`
+	RefreshToken string               `json:"refresh_token,omitempty"`
+	ExpiresIn    int64                `json:"expires_in"`
+	User         service.UserResponse `json:"user"`
+}
+
+type RefreshTokenRequest struct {
+	RefreshToken string `json:"refresh_token"`
+}
+
+type RefreshTokenResponse struct {
+	AccessToken  string               `json:"access_token"`
+	RefreshToken string               `json:"refresh_token,omitempty"`
+	ExpiresIn    int64                `json:"expires_in"`
+	User         service.UserResponse `json:"user"`
+}
+
+type LogoutRequest struct {
+	RefreshToken string `json:"refresh_token"`
+}
+
+type ClaimURLsRequest struct {
+	ShortCodes []string `json:"short_codes"`
+}
+
+type ClaimURLsResponse struct {
+	ClaimedCount int      `json:"claimed_count"`
+	ShortCodes   []string `json:"short_codes"`
 }

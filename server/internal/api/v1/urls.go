@@ -12,14 +12,18 @@ import (
 	"github.com/JorgeLR0610/CloseLinkit/internal/response"
 	"github.com/JorgeLR0610/CloseLinkit/internal/service"
 	"github.com/JorgeLR0610/CloseLinkit/web"
+	"github.com/google/uuid"
 )
 
 const InternalErrorMsg = "There was an error on our end. Please try again later"
 
 type URLServicer interface {
-	CreateShortCode(ctx context.Context, originalURL string) (string, error)
+	CreateShortCode(ctx context.Context, originalURL string) (service.CreatedURL, error)
 	ResolveShortCode(ctx context.Context, shortCode string) (string, error)
 	GetURLStats(ctx context.Context, shortCode string) (repository.GetURLStatsRow, error)
+	GetURLsByUserID(ctx context.Context, userID uuid.UUID) ([]service.UserURL, error)
+	ClaimURLs(ctx context.Context, userID uuid.UUID, shortCodes []string) ([]string, error)
+	DeleteURLByShortCode(ctx context.Context, shortCode string, userID uuid.UUID) error
 }
 
 type URLHandler struct {
@@ -59,7 +63,7 @@ func (h *URLHandler) HandlerCreateURL(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	shortCode, err := h.service.CreateShortCode(r.Context(), urlParams.OriginalURL)
+	createdURL, err := h.service.CreateShortCode(r.Context(), urlParams.OriginalURL)
 	if err != nil {
 		if errors.Is(err, service.ErrInvalidURLScheme) || errors.Is(err, service.ErrNoHost) || errors.Is(err, service.ErrInvalidURL) {
 			h.writeErrorLogged(w, http.StatusBadRequest, err.Error())
@@ -77,7 +81,8 @@ func (h *URLHandler) HandlerCreateURL(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if err := response.WriteJSON(w, http.StatusCreated, CreateURLResponse{
-		ShortURL: h.baseURL + "/" + shortCode,
+		ShortURL:  h.baseURL + "/" + createdURL.ShortCode,
+		ExpiresAt: createdURL.ExpiresAt,
 	}); err != nil {
 		h.logger.Error(
 			"could not send shortURL creation response",
@@ -121,6 +126,11 @@ func (h *URLHandler) HandlerResolveShortURL(w http.ResponseWriter, r *http.Reque
 }
 
 func (h *URLHandler) HandlerGetURLStats(w http.ResponseWriter, r *http.Request) {
+	if _, ok := service.UserIDFromContext(r.Context()); !ok {
+		h.writeErrorLogged(w, http.StatusUnauthorized, "Unauthorized")
+		return
+	}
+
 	shortCode := r.PathValue("shortCode")
 
 	stats, err := h.service.GetURLStats(r.Context(), shortCode)
@@ -151,4 +161,119 @@ func (h *URLHandler) HandlerGetURLStats(w http.ResponseWriter, r *http.Request) 
 			slog.Any("error", err),
 		)
 	}
+}
+
+func (h *URLHandler) HandlerGetUserURLs(w http.ResponseWriter, r *http.Request) {
+	userID, ok := service.UserIDFromContext(r.Context())
+	if !ok {
+		h.writeErrorLogged(w, http.StatusUnauthorized, "Unauthorized")
+		return
+	}
+
+	urls, err := h.service.GetURLsByUserID(r.Context(), userID)
+	if err != nil {
+		h.writeErrorLogged(w, http.StatusInternalServerError, InternalErrorMsg)
+		h.logger.Error(
+			"could not retrieve user URLs",
+			slog.String("method", r.Method),
+			slog.String("path", r.URL.Path),
+			slog.String("user_id", userID.String()),
+			slog.Any("error", err),
+		)
+		return
+	}
+
+	responseURLs := make([]UserURLResponse, 0, len(urls))
+	for _, u := range urls {
+		responseURLs = append(responseURLs, UserURLResponse{
+			OriginalURL: u.OriginalURL,
+			ShortCode:   u.ShortCode,
+			ShortURL:    h.baseURL + "/" + u.ShortCode,
+			CreatedAt:   u.CreatedAt,
+			ClickCount:  u.ClickCount,
+		})
+	}
+
+	if err := response.WriteJSON(w, http.StatusOK, responseURLs); err != nil {
+		h.logger.Error(
+			"could not send user URLs response",
+			slog.String("method", r.Method),
+			slog.String("path", r.URL.Path),
+			slog.Any("error", err),
+		)
+	}
+}
+
+func (h *URLHandler) HandlerClaimURLs(w http.ResponseWriter, r *http.Request) {
+	userID, ok := service.UserIDFromContext(r.Context())
+	if !ok {
+		h.writeErrorLogged(w, http.StatusUnauthorized, "Unauthorized")
+		return
+	}
+
+	var req ClaimURLsRequest
+	decoder := json.NewDecoder(r.Body)
+	decoder.DisallowUnknownFields()
+	if err := decoder.Decode(&req); err != nil {
+		h.writeErrorLogged(w, http.StatusBadRequest, "Invalid request body")
+		return
+	}
+
+	claimed, err := h.service.ClaimURLs(r.Context(), userID, req.ShortCodes)
+	if err != nil {
+		h.writeErrorLogged(w, http.StatusInternalServerError, InternalErrorMsg)
+		h.logger.Error(
+			"could not claim URLs",
+			slog.String("method", r.Method),
+			slog.String("path", r.URL.Path),
+			slog.String("user_id", userID.String()),
+			slog.Any("error", err),
+		)
+		return
+	}
+
+	if claimed == nil {
+		claimed = []string{}
+	}
+
+	if err := response.WriteJSON(w, http.StatusOK, ClaimURLsResponse{
+		ClaimedCount: len(claimed),
+		ShortCodes:   claimed,
+	}); err != nil {
+		h.logger.Error(
+			"could not send claim URLs response",
+			slog.String("method", r.Method),
+			slog.String("path", r.URL.Path),
+			slog.Any("error", err),
+		)
+	}
+}
+
+func (h *URLHandler) HandlerDeleteURL(w http.ResponseWriter, r *http.Request) {
+	userID, ok := service.UserIDFromContext(r.Context())
+	if !ok {
+		h.writeErrorLogged(w, http.StatusUnauthorized, "Unauthorized")
+		return
+	}
+
+	shortCode := r.PathValue("shortCode")
+
+	if err := h.service.DeleteURLByShortCode(r.Context(), shortCode, userID); err != nil {
+		if errors.Is(err, service.ErrNoURLFound) {
+			h.writeErrorLogged(w, http.StatusNotFound, "Not found")
+			return
+		}
+
+		h.writeErrorLogged(w, http.StatusInternalServerError, InternalErrorMsg)
+		h.logger.Error(
+			"could not delete user URL",
+			slog.String("method", r.Method),
+			slog.String("path", r.URL.Path),
+			slog.String("user_id", userID.String()),
+			slog.Any("error", err),
+		)
+		return
+	}
+
+	response.WriteNoContent(w)
 }

@@ -9,6 +9,8 @@ interface Props {
   displayedStats: boolean;
   setDisplayedStats: Dispatch<SetStateAction<boolean>>;
   setStats: Dispatch<SetStateAction<URLStats | null>>;
+  stats?: URLStats | null;
+  accessToken?: string;
 }
 
 export default function StatsButton({
@@ -17,19 +19,24 @@ export default function StatsButton({
   displayedStats,
   setDisplayedStats,
   setStats,
+  stats,
+  accessToken,
 }: Props) {
   const handleStatsDisplay = async () => {
-    if (!displayedStats) {
-      try {
-        const resp = await getURLStats(shortURL);
-        setStats(resp);
-      } catch {
+    if (displayedStats) {
+      setDisplayedStats(false);
+      return;
+    }
+
+    try {
+      setStats(await getURLStats(shortURL, accessToken));
+    } catch {
+      if (!stats) {
         toast.error("Could not load stats. Please try again later.");
         return;
       }
     }
-
-    setDisplayedStats((prev) => !prev);
+    setDisplayedStats(true);
   };
 
   return (
