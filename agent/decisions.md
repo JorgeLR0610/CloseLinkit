@@ -48,6 +48,18 @@ login, registration auto-login, and session restore.
 
 `/` shows localStorage links for guests and API links for authenticated users.
 
+### URL Deletion Semantics
+
+`DELETE /api/v1/urls/{shortCode}` performs an atomic delete with `WHERE short_code = $1 AND user_id = $2`.
+If 0 rows are affected, the service returns `404 Not Found` rather than `403 Forbidden` to prevent
+leaking whether a URL exists under another user's account.
+
+### Timing Attack Mitigation in Login
+
+When an email is not found in the database during login, the service executes a simulated Argon2id
+password hash verification with a dummy hash before returning 401. This produces consistent execution
+times and prevents email enumeration via timing discrepancies.
+
 ## Pending Decisions
 
 * Whether custom short URLs should reuse the current short-code generation service.

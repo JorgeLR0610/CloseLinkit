@@ -3,33 +3,38 @@
 [![Frontend CI](https://github.com/JorgeLR0610/CloseLinkit/actions/workflows/frontend-ci.yaml/badge.svg)](https://github.com/JorgeLR0610/CloseLinkit/actions/workflows/frontend-ci.yaml)
 [![Backend CI](https://github.com/JorgeLR0610/CloseLinkit/actions/workflows/backend-ci.yaml/badge.svg)](https://github.com/JorgeLR0610/CloseLinkit/actions/workflows/backend-ci.yaml)
 
-CloseLinkit is a URL shortening service composed of a Go backend, a React frontend, and a PostgreSQL database. It exposes a REST API and a web client that allows users to create, retrieve, and resolve shortened URLs.
+CloseLinkit is a URL shortening service composed of a Go backend, a React frontend, and a PostgreSQL database. It exposes a REST API and a web client that allows users to create, retrieve, manage, and resolve shortened URLs with authentication, link claiming, and lifecycle management.
 
-> **Current Version:** v0.2.0
+> **Current Version:** v0.3.0
 
 ![CloseLinkit Screenshot](docs/screenshot.png)
 
 ## Main Features
 
-- **URL Shortening:** Easily shorten long URLs.
-- **Redirection:** Fast and reliable redirection from short codes to original URLs.
-- **Statistics & Analytics:** Track basic usage stats, like click counts and creation timestamps.
-- **Interactive Swagger UI**: Interactive API documentation embedded directly at `/docs/`.
-- **Containerized Environment**: Full containerization via Docker Compose for easy development and deployment.
+- **URL Shortening & Expiration:** Easily shorten long URLs. Authenticated links are permanent; anonymous links automatically expire after 7 days.
+- **Fast Redirection:** High-performance HTTP 302 redirection from 7-character Base62 short codes to target URLs.
+- **User Authentication & Accounts:** Secure registration and login using Argon2id password hashing, constant-time simulation against timing attacks, memory-only JWT access tokens, and rotating HttpOnly cookie refresh tokens (ADR 0010).
+- **Link Management & Ownership:** Authenticated users can list all their shortened URLs, track individual statistics, and delete links with instant feedback.
+- **Anonymous URL Claiming:** Automatically transfers URLs created as a guest into user accounts upon signup or login.
+- **Protected Statistics & Analytics:** Authenticated access to click tracking and creation timestamps.
+- **Automated Background Cleanup:** Background goroutines periodically purge expired anonymous URLs (every 12h) and expired refresh tokens (every 1h).
+- **Interactive Swagger UI:** Interactive OpenAPI 3.0 documentation embedded directly at `/docs/`.
+- **Hardened Distroless Container:** Production multi-stage Docker build using `gcr.io/distroless/static-debian13:nonroot` (ADR 0011) with automated GHCR image publishing on release tags.
   
 ## Tech Stack
 
 | Component | Technology | Version / Tooling |
 | :--- | :--- | :--- |
-| **Backend** | Go (`net/http`) | 1.26.2 |
-| **Frontend** | React + TypeScript + Vite | React 19.2.7 |
+| **Backend** | Go (`net/http`) | 1.26.2 (Runtime) / 1.26.8 (Builder) |
+| **Frontend** | React + TypeScript + Vite | React 19.3 / Vite 8.3 / Router 8.4 |
 | **Database** | PostgreSQL | 18.4 |
 | **SQL Code Generator** | `sqlc` | v1.31.1 |
 | **Database Migrations** | `goose` | v3.27.3 |
+| **Security & Authentication** | Argon2id, JWT (`golang-jwt/jwt/v5`) | RFC 7519 / RFC 9106 |
 | **Security & Vulnerabilities** | `govulncheck` | Standard Go Tooling |
-| **Testing Frameworks** | Vitest, React Testing Library, MSW | v4 / v16 / v2 |
-| **Linters & Formatters** | `oxlint`, `oxfmt` | v1 / v0.63 |
-| **Orchestration** | Docker & Docker Compose | Compose Specification |
+| **Testing Frameworks** | Vitest, React Testing Library, MSW | v5 / v16 / v2 |
+| **Linters & Formatters** | `oxlint`, `oxfmt` | v1.85 / v0.70 |
+| **Container & Runtime** | Docker Compose, Distroless Static | Debian 13 nonroot (ADR 0011) |
 
 ## Architecture & Data Flow
 
@@ -38,20 +43,27 @@ CloseLinkit is a URL shortening service composed of a Go backend, a React fronte
 ```mermaid
 graph TD
     Root["CloseLinkit (Monorepo)"]
-    Root --> Docs["docs/ (Architecture & ADRs)"]
-    Root --> Frontend["frontend/ (React 19 + Vite)"]
+    Root --> Docs["docs/ (Architecture, ADRs, Changelog)"]
+    Root --> Frontend["frontend/ (React 19 + TypeScript + Vite)"]
     Root --> Server["server/ (Go Backend)"]
+    Root --> Workflows[".github/workflows/ (CI & Docker Publish)"]
     Root --> Scripts["scripts/ (Automated scripts)"]
     
-    Server --> Cmd["cmd/CloseLinkit/ (Main application entry point)"]
+    Server --> Cmd["cmd/CloseLinkit/ (Main entry point & cleanup jobs)"]
     Server --> Internal["internal/"]
-    Internal --> API["api/v1/ (HTTP Handlers)"]
-    Internal --> Service["service/ (Business logic & URL generator)"]
+    Internal --> API["api/v1/ (HTTP Handlers & DTOs)"]
+    Internal --> Middleware["middleware/ (Auth, CORS, RateLimiter)"]
+    Internal --> Service["service/ (Business logic & Shortcode generator)"]
+    Internal --> Security["security/ (Argon2id & JWT token management)"]
     Internal --> Repo["repository/ (SQLC DB Layer)"]
-    Server --> DB["db/migrations/ (Goose SQL Migrations)"]
+    Server --> DB["db/migrations/ (Goose SQL Migrations 001-005)"]
     Server --> ServerDocs["docs/ (OpenAPI spec & embedded Swagger UI)"]
 
-    Frontend --> Src["src/ (Components, Services, Types)"]
+    Frontend --> Src["src/"]
+    Src --> Context["context/ (AuthContext & AuthProvider)"]
+    Src --> Pages["pages/ (Login, Signup, Home)"]
+    Src --> Components["components/ (Hero, RecentURL, URLList, Header, etc.)"]
+    Src --> Services["services/ (API client, Auth, URLs)"]
 ```
 
 ### Data Flow Diagram
@@ -68,15 +80,15 @@ sequenceDiagram
 
     Note over User, DB: URL Shortening Request Flow
     User->>FE: Input original long URL & submit
-    FE->>H: POST /api/v1/shorten { "url": "..." }
-    H->>S: ShortenURL(ctx, url)
+    FE->>H: POST /api/v1/shorten { "url": "..." } (Optional Bearer token)
+    H->>S: ShortenURL(ctx, url, userID)
     S->>S: Generate 7-char Base62 code
     S->>R: CreateURL(ctx, params)
     R->>DB: INSERT INTO urls ...
-    DB-->>R: Return saved record
+    DB-->>R: Return saved record (with expires_at)
     R-->>S: URL record
     S-->>H: Short URL data
-    H-->>FE: HTTP 201 Created { "short_url": "..." }
+    H-->>FE: HTTP 201 Created { "short_url": "...", "expires_at": ... }
     FE-->>User: Display shortened URL
 
     Note over User, DB: URL Resolution / Redirect Flow
@@ -88,6 +100,18 @@ sequenceDiagram
     R-->>S: Original destination URL
     S-->>H: Destination URL
     H-->>User: HTTP 302 Found (Location: target URL)
+
+    Note over User, DB: Authentication & URL Claiming Flow
+    User->>FE: Login / Register credentials
+    FE->>H: POST /api/v1/auth/login
+    H->>S: Authenticate(email, password)
+    S-->>H: Token pair (access token + refresh cookie)
+    H-->>FE: HTTP 200 OK
+    FE->>H: POST /api/v1/urls/claim { "urls": ["abc1234", ...] }
+    H->>S: ClaimURLs(userID, shortCodes)
+    S->>R: ClaimURLsByShortCodes(userID, shortCodes)
+    R->>DB: UPDATE urls SET user_id = $1, expires_at = NULL WHERE short_code = ANY($2) AND user_id IS NULL
+    DB-->>FE: HTTP 200 OK (guest links now claimed permanently)
 ```
 
 ## Prerequisites
@@ -122,8 +146,8 @@ Below is an overview of the environment variables used across the application:
 | `ALLOWED_ORIGINS` | `http://localhost:5173` | Comma-separated CORS allowed origins for backend requests |
 | `VITE_API_BASE_URL` | `http://localhost:8080` | API base URL consumed by the Vite React client |
 | `VITE_HOST_PORT` | `5173` | Port on which the React frontend is served on the host |
-| `JWT_SECRET` | `GvD/eXEuby9+cLxQyO767htLeW2xJmxkbBmJMiD2GGs=` | Symmetric key used to sign and verify JWTs (can be generated with bash via ```openssl rand -base64 32```)
-| `COOKIE_SECURE` | `true or false` | Boolan variable to set Secure field value in server's Cookie header
+| `JWT_SECRET` | `GvD/eXEuby9+cLxQyO767htLeW2xJmxkbBmJMiD2GGs=` | Symmetric key used to sign and verify JWT tokens (generate with `openssl rand -base64 32`) |
+| `COOKIE_SECURE` | `true` (`false` in local HTTP) | Boolean flag controlling the `Secure` attribute of the refresh token cookie |
 ## Getting Started
 
 ### Option 1: Automated Setup (only for Linux/macOS)
@@ -241,10 +265,12 @@ Full architectural decisions and system design documentation can be found in the
 Based on our planned evolution in [`docs/architecture.md`](/docs/architecture.md):
 
 - [x] **Analytics Dashboard**: Analytics panel displaying total click counts and creation timestamp.
+- [x] **User Authentication**: JWT-based authentication with secure HttpOnly cookie session handling and Argon2id hashing.
+- [x] **User Accounts & Link Management**: Link ownership, anonymous URL claiming, per-user listing, and link deletion (editing pending).
+- [x] **Hardened Containers & CI/CD**: Distroless runtime image (ADR 0011), vulnerability audits (`govulncheck`), and automated GHCR publishing via GitHub Actions.
 - [ ] **Custom Short URLs**: Allow users to specify custom aliases for shortened links.
-- [x] **User Authentication**: JWT-based authentication with secure HttpOnly cookie session handling.
-- [ ] **User Accounts & Link Management**: Manage, update, and delete created links.
-- [ ] **Infrastructure & Deployment**: Published Docker images, GitHub Actions CI/CD pipeline, AWS deployment, and Kubernetes manifests.
+- [ ] **Link Editing**: Updating destination URLs for existing shortened links.
+- [ ] **Cloud Deployment**: AWS deployment (EC2, S3, CloudFront) and Kubernetes manifests.
 
 ## License
 
