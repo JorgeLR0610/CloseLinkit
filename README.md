@@ -7,7 +7,24 @@ CloseLinkit is a URL shortening service composed of a Go backend, a React fronte
 
 > **Current Version:** v0.3.0
 
-![CloseLinkit Screenshot](docs/screenshot.png)
+<table>
+  <tr>
+    <td width="50%">
+      <img src="docs/home.png" alt="CloseLinkit home" width="100%">
+    </td>
+    <td width="50%">
+      <img src="docs/signup.png" alt="CloseLinkit signup" width="100%">
+    </td>
+  </tr>
+  <tr>
+    <td width="50%">
+      <img src="docs/login.png" alt="CloseLinkit login" width="100%">
+    </td>
+    <td width="50%">
+      <img src="docs/shortenURL.png" alt="CloseLinkit shortenURL" width="100%">
+    </td>
+  </tr>
+</table>
 
 ## Main Features
 
@@ -146,7 +163,7 @@ Below is an overview of the environment variables used across the application:
 | `ALLOWED_ORIGINS` | `http://localhost:5173` | Comma-separated CORS allowed origins for backend requests |
 | `VITE_API_BASE_URL` | `http://localhost:8080` | API base URL consumed by the Vite React client |
 | `VITE_HOST_PORT` | `5173` | Port on which the React frontend is served on the host |
-| `JWT_SECRET` | `GvD/eXEuby9+cLxQyO767htLeW2xJmxkbBmJMiD2GGs=` | Symmetric key used to sign and verify JWT tokens (generate with `openssl rand -base64 32`) |
+| `JWT_SECRET` | `your_jwt_secret_key_here_change_in_production` | Symmetric key used to sign and verify JWT tokens (generated with `openssl rand -base64 32`) |
 | `COOKIE_SECURE` | `true` (`false` in local HTTP) | Boolean flag controlling the `Secure` attribute of the refresh token cookie |
 ## Getting Started
 

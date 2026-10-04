@@ -16,7 +16,15 @@ if ! docker info >/dev/null 2>&1; then
     exit 1
 fi
 
-cp .env.example .env
+if [ ! -f .env ]; then
+    cp .env.example .env
+fi
+
+if grep -q "your_jwt_secret_key_here_change_in_production" .env; then
+    NEW_SECRET=$(openssl rand -base64 32)
+    sed -i.bak "s|JWT_SECRET=.*|JWT_SECRET=${NEW_SECRET}|" .env && rm -f .env.bak
+    echo "Generated fresh local JWT_SECRET in .env"
+fi
 
 echo "Starting containers..."
 

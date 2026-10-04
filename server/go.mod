@@ -2,7 +2,7 @@ module github.com/JorgeLR0610/CloseLinkit
 
 go 1.26.2
 
-toolchain go1.26.7
+toolchain go1.26.8
 
 require (
 	github.com/golang-jwt/jwt/v5 v5.3.1
