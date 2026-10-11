@@ -1,4 +1,4 @@
-ARG NODE_VERSION=24.18-alpine3.23
+ARG NODE_VERSION=24.18.1-alpine3.24
 ARG NGINX_VERSION=1.30.5-alpine3.24
 
 # Build stage

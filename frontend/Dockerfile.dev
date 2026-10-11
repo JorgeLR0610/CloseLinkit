@@ -1,7 +1,7 @@
 # =========================================
 # Stage: Development
 # =========================================
-ARG NODE_VERSION=24.18-alpine3.23
+ARG NODE_VERSION=24.18.1-alpine3.24
 
 FROM node:${NODE_VERSION} AS dev
 
@@ -12,7 +12,7 @@ COPY package*.json ./
 RUN npm ci
 
 COPY . .
- 
+
 # Ensure the "node" user owns the application files
 RUN chown -R node:node /app
 
