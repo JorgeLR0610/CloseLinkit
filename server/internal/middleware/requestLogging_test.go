@@ -75,4 +75,34 @@ func TestRequestLogging(t *testing.T) {
 			}
 		})
 	}
+
+	t.Run("Logs resolved client IP from ClientIP middleware", func(t *testing.T) {
+		var logBuffer bytes.Buffer
+		logger := slog.New(slog.NewJSONHandler(&logBuffer, nil))
+
+		handler := middleware.ClientIP(true)(
+			middleware.RequestLogging(logger)(
+				http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+					w.WriteHeader(http.StatusOK)
+				}),
+			),
+		)
+
+		req := httptest.NewRequest(http.MethodGet, "/test", nil)
+		req.RemoteAddr = "10.0.0.1:12345"
+		req.Header.Set("X-Real-IP", "203.0.113.50")
+
+		rec := httptest.NewRecorder()
+		handler.ServeHTTP(rec, req)
+
+		var logEntry map[string]any
+		if err := json.Unmarshal(logBuffer.Bytes(), &logEntry); err != nil {
+			t.Fatalf("could not parse log entry: %v", err)
+		}
+
+		remoteAddr, ok := logEntry["remote_addr"].(string)
+		if !ok || remoteAddr != "203.0.113.50" {
+			t.Errorf("expected remote_addr %q, got %q", "203.0.113.50", remoteAddr)
+		}
+	})
 }

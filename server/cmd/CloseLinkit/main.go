@@ -69,6 +69,8 @@ func main() {
 		1*time.Minute,
 	)
 
+	trustProxy := os.Getenv("TRUST_PROXY") == "true"
+
 	ctx := context.Background()
 
 	// Create pool connection
@@ -239,7 +241,9 @@ func main() {
 		Addr: ":8080",
 		Handler: middleware.CORSMiddleware(allowedOrigins)(
 			middleware.Recover(logger)(
-				middleware.RequestID(mux),
+				middleware.RequestID(
+					middleware.ClientIP(trustProxy)(mux),
+				),
 			),
 		),
 		ReadHeaderTimeout: 5 * time.Second,

@@ -5,10 +5,10 @@ services:
     restart: unless-stopped
     shm_size: 2252mb
     environment:
-      - POSTGRES_USER=${POSTGRES_USER}
-      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
-      - POSTGRES_DB=${POSTGRES_DB}
-      - TZ=${DB_TIMEZONE}
+      POSTGRES_USER: "${POSTGRES_USER}"
+      POSTGRES_PASSWORD: "${POSTGRES_PASSWORD}"
+      POSTGRES_DB: "${POSTGRES_DB}"
+      TZ: "${DB_TIMEZONE}"
     ports:
       # Expose DB to localhost to run migrations during development
       # Section should be removed in production
@@ -36,10 +36,10 @@ services:
       dockerfile: Dockerfile
     restart: unless-stopped
     environment:
-      - DB_URL=${DB_URL}
-      - ALLOWED_ORIGINS=${ALLOWED_ORIGINS}
-      - BASE_URL=${BASE_URL}
-      - JWT_SECRET=${JWT_SECRET}
+      DB_URL: "${DB_URL}"
+      ALLOWED_ORIGINS: "${ALLOWED_ORIGINS}"
+      BASE_URL: "${BASE_URL}"
+      JWT_SECRET: "${JWT_SECRET}"
     ports:
       - "${API_HOST_PORT}:8080"
     depends_on:

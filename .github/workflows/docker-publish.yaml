@@ -1,4 +1,4 @@
-name: API Docker image
+name: Docker images
 
 on:
   push:
@@ -11,8 +11,9 @@ env:
   IMAGE_PREFIX: ${{ github.repository_owner }}/closelinkit
 
 jobs:
-  changes:
+  backend-changes:
     name: Backend Changes
+    if: github.event_name == 'pull_request'
     runs-on: ubuntu-latest
     permissions:
       pull-requests: read
@@ -21,7 +22,7 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v7
-        
+
       - name: Detect changes
         id: filter
         uses: dorny/paths-filter@v4
@@ -30,10 +31,30 @@ jobs:
             backend:
               - "server/**"
 
+  frontend-changes:
+    name: Frontend Changes
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    permissions:
+      pull-requests: read
+    outputs:
+      frontend: ${{ steps.filter.outputs.frontend }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Detect changes
+        id: filter
+        uses: dorny/paths-filter@v4
+        with:
+          filters: |
+            frontend:
+              - "frontend/**"
+
   api:
     name: Build and publish API
-    needs: changes
-    if: github.event_name == 'push' || needs.changes.outputs.backend == 'true'
+    needs: backend-changes
+    if: ${{ !cancelled() && (github.event_name == 'push' || needs.backend-changes.outputs.backend == 'true') }}
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -56,12 +77,56 @@ jobs:
         uses: docker/metadata-action@v6
         with:
           images: ${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}-api
+          tags: |
+            type=semver,pattern={{version}}
+            type=raw,value=latest
+            type=sha
 
       - name: Build and push
         uses: docker/build-push-action@v7
         with:
           context: ./server
           file: ./server/Dockerfile
+          push: ${{ github.event_name != 'pull_request' }}
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+
+  frontend:
+    name: Build and publish Frontend
+    needs: frontend-changes
+    if: ${{ !cancelled() && (github.event_name == 'push' || needs.frontend-changes.outputs.frontend == 'true') }}
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Login to GHCR
+        if: github.event_name != 'pull_request'
+        uses: docker/login-action@v4
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Extract metadata
+        id: meta
+        uses: docker/metadata-action@v6
+        with:
+          images: ${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}-frontend
+          tags: |
+            type=semver,pattern={{version}}
+            type=raw,value=latest
+            type=sha
+
+      - name: Build and push
+        uses: docker/build-push-action@v7
+        with:
+          context: ./frontend
+          file: ./frontend/Dockerfile
           push: ${{ github.event_name != 'pull_request' }}
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}

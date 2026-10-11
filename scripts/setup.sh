@@ -17,7 +17,7 @@ if ! docker info >/dev/null 2>&1; then
 fi
 
 if [ ! -f .env ]; then
-    cp .env.example .env
+    cp .env.dev.example .env
 fi
 
 if grep -q "your_jwt_secret_key_here_change_in_production" .env; then
