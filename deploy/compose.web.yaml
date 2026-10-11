@@ -1,0 +1,8 @@
+services:
+  web:
+    image: ghcr.io/jorgelr0610/closelinkit-frontend:${IMAGE_TAG:-latest}
+    environment:
+      API_UPSTREAM: "${API_UPSTREAM}"
+    restart: unless-stopped
+    ports:
+      - "80:8080"
