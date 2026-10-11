@@ -34,7 +34,7 @@ func RequestLogging(logger *slog.Logger) func(http.Handler) http.Handler {
 				slog.String("path", r.URL.Path),
 				slog.Int("status", rw.statusCode),
 				slog.Duration("duration", time.Since(start)),
-				slog.String("remote_addr", r.RemoteAddr),
+				slog.String("remote_addr", GetClientIP(r)),
 				slog.String("user_agent", r.UserAgent()),
 			)
 		})

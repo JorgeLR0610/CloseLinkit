@@ -2,7 +2,6 @@ package middleware
 
 import (
 	"log/slog"
-	"net"
 	"net/http"
 	"sync"
 	"time"
@@ -78,11 +77,7 @@ func (rl *IPRateLimiter) CleanInactiveIPs() {
 func RateLimiting(rl *IPRateLimiter, logger *slog.Logger) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			ip, _, err := net.SplitHostPort(r.RemoteAddr)
-			if err != nil {
-				ip = r.RemoteAddr
-			}
-
+			ip := GetClientIP(r)
 			limiter := rl.getVisitor(ip)
 			if !limiter.Allow() {
 				if err := response.WriteError(w, http.StatusTooManyRequests, "Too Many Requests"); err != nil {
