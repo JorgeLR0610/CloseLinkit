@@ -14,11 +14,12 @@ The system exposes a REST API and a web client that allows users to create, retr
 |----------|------------|
 | Backend | Go (net/http) |
 | Frontend | React + TypeScript + Vite |
+| Web Server & Reverse Proxy | Nginx (nginxinc/nginx-unprivileged) |
 | Database | PostgreSQL |
 | SQL Code Generation | sqlc |
 | Migrations Tool | goose |
 | Security & Auth | Argon2id, JWT (golang-jwt/jwt/v5) |
-| Containerization | Docker Compose & Distroless Static (ADR 0011) |
+| Containerization | Docker Compose, Distroless Static (ADR 0011), Nginx Alpine (ADR 0012) |
 
 ---
 
@@ -28,9 +29,11 @@ The system exposes a REST API and a web client that allows users to create, retr
 
 Implements the REST API, business logic, security/auth primitives, and communication with the database.
 
-### Frontend (React)
+### Frontend (React + Nginx)
 
-Provides the graphical user interface (GUI) and communicates with the backend through HTTP requests.
+Provides the graphical user interface (GUI).
+- **Development**: Runs via Vite development server (`Dockerfile.dev`) with Hot Module Replacement (HMR).
+- **Production**: Packaged into a multi-stage Docker container (`frontend/Dockerfile`) using `nginxinc/nginx-unprivileged:1.30.5-alpine3.24` (ADR 0012). Nginx serves the compiled SPA assets and acts as a reverse proxy, forwarding `/api/`, short URLs (`~ "^/[a-zA-Z0-9]{7}$"`), and documentation (`/docs/`, `/openapi.yaml`) to the backend upstream (`API_UPSTREAM`).
 
 ### PostgreSQL
 
@@ -50,7 +53,13 @@ Receives HTTP requests, validates input, invokes the service layer, and builds H
 
 ### Middleware Layer
 
-Provides cross-cutting HTTP request handling including JWT authentication (`RequireAuth`, `OptionalAuth`), CORS policies, and IP-based rate limiting.
+Provides cross-cutting HTTP request handling:
+- **`ClientIP`**: Resolves the client IP once per request and stores it in context (`clientIPKey`). When `TRUST_PROXY=true`, it parses and validates the `X-Real-IP` header set by the Nginx reverse proxy (`net.ParseIP`); otherwise it falls back to the connection's `RemoteAddr` to prevent IP spoofing.
+- **`RequestLogging`**: Structured JSON logging of request status, duration, and client IP via `GetClientIP`.
+- **`RateLimiting`**: Token bucket rate limiting partitioned by client IP via `GetClientIP`.
+- **`RequireAuth` & `OptionalAuth`**: JWT validation and context injection.
+- **`CORSMiddleware`**: Cross-origin policy enforcement.
+- **`Recover` & `RequestID`**: Panic safety and end-to-end request tracing UUIDs.
 
 ### Service Layer
 
@@ -119,24 +128,25 @@ backend assigns ownership only to URLs with no owner and clears their expiration
 ## Request Flow
 
 ```text
-                Browser
-                   │
-                   ▼
-             React Frontend
-                   │
-              HTTP / JSON
-                   │
-                   ▼
-             Handler Layer
-                   │
-                   ▼
-             Service Layer
-                   │
-                   ▼
-            Repository Layer
-                   │
-                   ▼
-               PostgreSQL
+                     Browser / Client
+                            │
+                            ▼
+              Nginx Container (Reverse Proxy)
+              ┌─────────────┴─────────────┐
+              │                           │
+         [SPA / Assets]          [/api/, /{shortCode}, /docs/]
+              │                           │
+              ▼                           ▼
+      Static Files / HTML          Go Handler Layer
+                                          │
+                                          ▼
+                                    Service Layer
+                                          │
+                                          ▼
+                                   Repository Layer
+                                          │
+                                          ▼
+                                      PostgreSQL
 ```
 
 The response follows the same path in reverse.
@@ -149,7 +159,8 @@ The response follows the same path in reverse.
 - User authentication (JWT + refresh tokens), user accounts, per-user URL listing
 - Anonymous URL expiration (7 days) and claiming
 - User URL deletion (`DELETE /api/v1/urls/{shortCode}`) and protected analytics (`GET /api/v1/{shortCode}/stats`)
-- Hardened Distroless runtime image (ADR 0011)
+- Hardened Distroless runtime image for API (ADR 0011)
+- Unprivileged Nginx runtime image for frontend with reverse proxy (ADR 0012)
 
 ### Planned
 - Link editing (updating target URL)
@@ -161,9 +172,15 @@ The response follows the same path in reverse.
 - CI: backend (tests, golangci-lint, govulncheck), frontend (tests, lint, format check),
   secrets scan.
 - Minimal static distroless runtime image (`gcr.io/distroless/static-debian13:nonroot`, ADR 0011).
-- API Docker image published to GHCR on `v*.*.*` tags (`docker-publish.yaml`);
-  pull requests build the image without pushing.
+- Unprivileged Nginx runtime image for frontend (`nginxinc/nginx-unprivileged:1.30.5-alpine3.24`, ADR 0012).
+- API and Frontend Docker images published to GHCR on `v*.*.*` tags (`docker-publish.yaml`)
+  with path-filtered change detection on pull requests.
+- Multi-tier production deployment for AWS EC2 + RDS (`deploy/`):
+  - Frontend EC2 instance running unprivileged Nginx reverse proxy and React SPA (`deploy/compose.web.yaml`).
+  - Backend API EC2 instance running minimal Go Distroless container (`deploy/compose.api.yaml`).
+  - Managed AWS RDS PostgreSQL instance for relational persistence.
+  - Private VPC inter-service communication and least-privilege Security Groups (`deploy/README.md`).
 
 ### Planned
-- AWS deployment (EC2, S3, CloudFront)
+- Custom domain setup with TLS termination (ACM / ALB / CloudFront)
 - Kubernetes manifests

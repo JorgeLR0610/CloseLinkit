@@ -5,7 +5,7 @@
 
 CloseLinkit is a URL shortening service composed of a Go backend, a React frontend, and a PostgreSQL database. It exposes a REST API and a web client that allows users to create, retrieve, manage, and resolve shortened URLs with authentication, link claiming, and lifecycle management.
 
-> **Current Version:** v0.3.0
+> **Current Version:** v0.3.1
 
 <table>
   <tr>
@@ -36,7 +36,8 @@ CloseLinkit is a URL shortening service composed of a Go backend, a React fronte
 - **Protected Statistics & Analytics:** Authenticated access to click tracking and creation timestamps.
 - **Automated Background Cleanup:** Background goroutines periodically purge expired anonymous URLs (every 12h) and expired refresh tokens (every 1h).
 - **Interactive Swagger UI:** Interactive OpenAPI 3.0 documentation embedded directly at `/docs/`.
-- **Hardened Distroless Container:** Production multi-stage Docker build using `gcr.io/distroless/static-debian13:nonroot` (ADR 0011) with automated GHCR image publishing on release tags.
+- **Production Containerization:** Hardened distroless runtime container for the Go API (`gcr.io/distroless/static-debian13:nonroot`, ADR 0011) and an unprivileged Nginx container for the frontend (`nginxinc/nginx-unprivileged:1.30.5-alpine3.24`, ADR 0012) serving static assets and reverse-proxying requests.
+- **Automated GHCR Publishing:** GitHub Actions workflow building and publishing both `closelinkit-api` and `closelinkit-frontend` container images on release tags.
   
 ## Tech Stack
 
@@ -44,6 +45,7 @@ CloseLinkit is a URL shortening service composed of a Go backend, a React fronte
 | :--- | :--- | :--- |
 | **Backend** | Go (`net/http`) | 1.26.2 (Runtime) / 1.26.8 (Builder) |
 | **Frontend** | React + TypeScript + Vite | React 19.3 / Vite 8.3 / Router 8.4 |
+| **Web Server & Reverse Proxy** | Nginx (`nginxinc/nginx-unprivileged`) | 1.30.5-alpine3.24 |
 | **Database** | PostgreSQL | 18.4 |
 | **SQL Code Generator** | `sqlc` | v1.31.1 |
 | **Database Migrations** | `goose` | v3.27.3 |
@@ -51,7 +53,7 @@ CloseLinkit is a URL shortening service composed of a Go backend, a React fronte
 | **Security & Vulnerabilities** | `govulncheck` | Standard Go Tooling |
 | **Testing Frameworks** | Vitest, React Testing Library, MSW | v5 / v16 / v2 |
 | **Linters & Formatters** | `oxlint`, `oxfmt` | v1.85 / v0.70 |
-| **Container & Runtime** | Docker Compose, Distroless Static | Debian 13 nonroot (ADR 0011) |
+| **Container & Runtime** | Docker Compose, Distroless Static, Nginx Alpine | ADR 0011 / ADR 0012 |
 
 ## Architecture & Data Flow
 
@@ -63,19 +65,23 @@ graph TD
     Root --> Docs["docs/ (Architecture, ADRs, Changelog)"]
     Root --> Frontend["frontend/ (React 19 + TypeScript + Vite)"]
     Root --> Server["server/ (Go Backend)"]
+    Root --> Deploy["deploy/ (AWS EC2 Compose files, env templates & Guide)"]
+    Root --> Compose["compose.yaml (Local Development)"]
     Root --> Workflows[".github/workflows/ (CI & Docker Publish)"]
     Root --> Scripts["scripts/ (Automated scripts)"]
     
     Server --> Cmd["cmd/CloseLinkit/ (Main entry point & cleanup jobs)"]
     Server --> Internal["internal/"]
     Internal --> API["api/v1/ (HTTP Handlers & DTOs)"]
-    Internal --> Middleware["middleware/ (Auth, CORS, RateLimiter)"]
+    Internal --> Middleware["middleware/ (Auth, CORS, RateLimiter, ClientIP)"]
     Internal --> Service["service/ (Business logic & Shortcode generator)"]
     Internal --> Security["security/ (Argon2id & JWT token management)"]
     Internal --> Repo["repository/ (SQLC DB Layer)"]
     Server --> DB["db/migrations/ (Goose SQL Migrations 001-005)"]
     Server --> ServerDocs["docs/ (OpenAPI spec & embedded Swagger UI)"]
 
+    Frontend --> DockerFiles["Dockerfile (Prod Nginx) / Dockerfile.dev (Local Vite)"]
+    Frontend --> NginxTpl["default.conf.template (Nginx Reverse Proxy Config)"]
     Frontend --> Src["src/"]
     Src --> Context["context/ (AuthContext & AuthProvider)"]
     Src --> Pages["pages/ (Login, Signup, Home)"]
@@ -141,10 +147,10 @@ Before running CloseLinkit, ensure you have the following installed on your mach
 
 ## Environment Variables
 
-Copy the provided `.env.example` to `.env` and adjust the values if necessary.
+Copy the provided `.env.dev.example` to `.env` and adjust the values if necessary.
 
 ```bash
-cp .env.example .env
+cp .env.dev.example .env
 ```
 
 Below is an overview of the environment variables used across the application:
@@ -165,6 +171,7 @@ Below is an overview of the environment variables used across the application:
 | `VITE_HOST_PORT` | `5173` | Port on which the React frontend is served on the host |
 | `JWT_SECRET` | `your_jwt_secret_key_here_change_in_production` | Symmetric key used to sign and verify JWT tokens (generated with `openssl rand -base64 32`) |
 | `COOKIE_SECURE` | `true` (`false` in local HTTP) | Boolean flag controlling the `Secure` attribute of the refresh token cookie |
+| `TRUST_PROXY` | `false` (`true` in production behind Nginx) | Boolean flag controlling whether the API trusts the `X-Real-IP` header set by the reverse proxy |
 ## Getting Started
 
 ### Option 1: Automated Setup (only for Linux/macOS)
@@ -182,9 +189,9 @@ Once complete, open your browser and navigate to **[http://localhost:5173](http:
 
 If you prefer to start the project manually, follow these steps:
 
-1. **Create Environment File**:
+1. **Create and adjust Environment File**:
    ```bash
-   cp .env.example .env
+   cp .env.dev.example .env
    ```
 
 2. **Start the containers in detached mode:**
@@ -204,6 +211,15 @@ To stop services, execute:
 ```bash
 docker compose down
 ```
+
+### Production Deployment (AWS EC2 + RDS)
+
+For production environments, CloseLinkit separates concerns across independent AWS infrastructure components:
+- **Frontend EC2**: Runs the React SPA behind an unprivileged Nginx reverse proxy (`deploy/compose.web.yaml`).
+- **Backend API EC2**: Runs the Go REST API in a hardened Distroless container (`deploy/compose.api.yaml`).
+- **Database**: Managed AWS RDS PostgreSQL instance.
+
+Both EC2 instances communicate securely over private VPC IPs. For complete setup, Security Group rules, database migrations, and environment templates, see the [Production Deployment Guide](deploy/README.md).
 
 ## API Endpoints
 
@@ -284,10 +300,10 @@ Based on our planned evolution in [`docs/architecture.md`](/docs/architecture.md
 - [x] **Analytics Dashboard**: Analytics panel displaying total click counts and creation timestamp.
 - [x] **User Authentication**: JWT-based authentication with secure HttpOnly cookie session handling and Argon2id hashing.
 - [x] **User Accounts & Link Management**: Link ownership, anonymous URL claiming, per-user listing, and link deletion (editing pending).
-- [x] **Hardened Containers & CI/CD**: Distroless runtime image (ADR 0011), vulnerability audits (`govulncheck`), and automated GHCR publishing via GitHub Actions.
+- [x] **Hardened Containers & CI/CD**: Distroless API image (ADR 0011), unprivileged Nginx frontend image with reverse proxy (ADR 0012), vulnerability audits (`govulncheck`), and automated multi-image GHCR publishing via GitHub Actions.
 - [ ] **Custom Short URLs**: Allow users to specify custom aliases for shortened links.
 - [ ] **Link Editing**: Updating destination URLs for existing shortened links.
-- [ ] **Cloud Deployment**: AWS deployment (EC2, S3, CloudFront) and Kubernetes manifests.
+- [ ] **Cloud Deployment**: AWS deployment on EC2 and Kubernetes manifests.
 
 ## License
 

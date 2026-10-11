@@ -1,16 +1,8 @@
 # Changelog
 
-## v0.3.0 (released)
-- Users and JWT auth: register, login, refresh with rotation, logout (Argon2id passwords).
-- Constant-time password verification simulation during login to prevent user enumeration and timing attacks.
-- Refresh token as HttpOnly cookie; access token in memory only (ADR 0010).
-- `GET /api/v1/urls`: list the authenticated user's URLs.
-- `DELETE /api/v1/urls/{shortCode}`: delete shortened URLs owned by the authenticated user.
-- Anonymous URLs expire after 7 days; periodic cleanup of expired URLs (12h) and expired refresh tokens (1h).
-- `POST /api/v1/shorten` returns `expires_at` (null for authenticated users, 7 days for guests).
-- `POST /api/v1/urls/claim`: transfer anonymous URLs to the user on login/signup.
-- Require authentication for `GET /api/v1/{shortCode}/stats` and restrict analytics UI to authenticated users.
-- Frontend: login/signup pages, React Router, unified `/` view for guests and users, URL deletion with instant UI update, toast notifications.
-- Containerization: switch API runtime image to Distroless static nonroot (ADR 0011).
-- CI/CD: API Docker image published to GHCR on version tags.
-- Migrations 002-005: users, refresh_tokens, urls.user_id, urls.expires_at.
+## v0.3.1 (released)
+- Production frontend container using unprivileged Nginx (`nginxinc/nginx-unprivileged:1.30.5-alpine3.24`, ADR 0012).
+- Dynamic Nginx reverse proxy template routing `/api/`, 7-character short URLs (`~ "^/[a-zA-Z0-9]{7}$"`), and Swagger docs (`/docs/`, `/openapi.yaml`) to `${API_UPSTREAM}`.
+- Multi-image GitHub Actions workflow publishing both `closelinkit-api` and `closelinkit-frontend` to GHCR on release tags with path-filtered PR checks.
+- Production deployment configurations in `deploy/` for AWS EC2 (Frontend + Backend in same VPC) and AWS RDS PostgreSQL, accompanied by a step-by-step deployment guide (`deploy/README.md`).
+- Added `ClientIP` middleware (`server/internal/middleware/clientIP.go`) with `TRUST_PROXY` support and `X-Real-IP` Nginx header forwarding for accurate client IP resolution in rate limiting and request logging.

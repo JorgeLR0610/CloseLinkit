@@ -42,7 +42,7 @@ A task is done only when the checks for the areas you touched pass.
 
 ## Never
 - Commit, push, or switch branches unless asked.
-- Print, read aloud, or modify `.env`. Add new variables to `.env.example` with placeholders.
+- Print, read aloud, or modify `.env`. Add new variables to `.env.dev.example` with placeholders.
 - Run `scripts/setup.sh` (it overwrites `.env`).
 - Add dependencies without asking.
 - Change existing API contracts unless the task says so.
