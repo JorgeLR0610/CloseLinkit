@@ -12,6 +12,9 @@ updates:
 
   - package-ecosystem: "npm"
     directory: "/frontend"
+    ignore:
+      - dependency-name: "@types/node"
+        update-types: ["version-update:semver-major"]
     schedule:
       interval: "weekly"
     open-pull-requests-limit: 5
